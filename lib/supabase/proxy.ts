@@ -61,9 +61,28 @@ function pathMatches(
 
   return (
     pathname === allowedPath ||
-    pathname.startsWith(
-      `${allowedPath}/`
-    )
+    pathname.startsWith(`${allowedPath}/`)
+  );
+}
+
+/**
+ * IMPORTANT:
+ *
+ * "/drivers" must NOT be treated as part of "/driver".
+ *
+ * Driver portal routes are:
+ *   /driver
+ *   /driver/...
+ *
+ * Management route:
+ *   /drivers
+ */
+function isDriverPortalPath(
+  pathname: string
+) {
+  return (
+    pathname === "/driver" ||
+    pathname.startsWith("/driver/")
   );
 }
 
@@ -75,14 +94,14 @@ function isManagementRouteAllowed(
     role === "owner" ||
     role === "admin"
   ) {
-    return !pathname.startsWith(
-      "/driver"
+    return !isDriverPortalPath(
+      pathname
     );
   }
 
   if (role === "driver") {
-    return pathname.startsWith(
-      "/driver"
+    return isDriverPortalPath(
+      pathname
     );
   }
 
@@ -204,12 +223,8 @@ export async function updateSession(
   // ============================================================
 
   if (
-    pathname.startsWith(
-      "/api/"
-    ) ||
-    pathname.startsWith(
-      "/auth/"
-    )
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/auth/")
   ) {
     return response;
   }
@@ -357,15 +372,15 @@ export async function updateSession(
   }
 
   // ============================================================
-  // DRIVER ROUTES
+  // DRIVER USERS
   // ============================================================
 
   if (
     role === "driver"
   ) {
     if (
-      !pathname.startsWith(
-        "/driver"
+      !isDriverPortalPath(
+        pathname
       )
     ) {
       return createRedirect(
@@ -383,8 +398,8 @@ export async function updateSession(
   // ============================================================
 
   if (
-    pathname.startsWith(
-      "/driver"
+    isDriverPortalPath(
+      pathname
     )
   ) {
     return createRedirect(
