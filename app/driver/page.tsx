@@ -232,21 +232,30 @@ export default function DriverPage() {
   }, [driver]);
 
   const activeLoads = useMemo(() => {
-    return loads.filter(
-      (load) =>
-        ![
-          "delivered",
-          "cancelled",
-          "invoiced",
-        ].includes(load.status)
-    );
-  }, [loads]);
+  const activeStatuses = [
+    "booked",
+    "dispatched",
+    "picked_up",
+    "in_transit",
+  ];
 
-  const deliveredLoads = useMemo(() => {
-    return loads.filter(
-      (load) => load.status === "delivered"
-    );
-  }, [loads]);
+  return loads.filter((load) =>
+    activeStatuses.includes(load.status)
+  );
+}, [loads]);
+
+const deliveredLoads = useMemo(() => {
+  const completedStatuses = [
+    "delivered",
+    "pod_received",
+    "invoiced",
+    "paid",
+  ];
+
+  return loads.filter((load) =>
+    completedStatuses.includes(load.status)
+  );
+}, [loads]);
 
   const latestSettlement = settlements[0] ?? null;
 
