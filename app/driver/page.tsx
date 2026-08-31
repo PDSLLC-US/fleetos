@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import { createClient } from "@/lib/supabase/client";
 import FleetOSBrand from "@/components/FleetOSBrand";
+
 import {
   getAuthRole,
   roleLabel,
@@ -51,18 +53,33 @@ export default function DriverPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [auth, setAuth] = useState<AuthRoleContext | null>(null);
-  const [driver, setDriver] = useState<DriverRecord | null>(null);
-  const [loads, setLoads] = useState<DriverLoad[]>([]);
-  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [auth, setAuth] =
+    useState<AuthRoleContext | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [driver, setDriver] =
+    useState<DriverRecord | null>(null);
 
-  const [error, setError] = useState("");
+  const [companyName, setCompanyName] =
+    useState("Client Company");
+
+  const [loads, setLoads] =
+    useState<DriverLoad[]>([]);
+
+  const [settlements, setSettlements] =
+    useState<Settlement[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [loggingOut, setLoggingOut] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
     void loadDriverPortal();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -71,7 +88,8 @@ export default function DriverPage() {
     setError("");
 
     try {
-      const authContext = await getAuthRole(supabase);
+      const authContext =
+        await getAuthRole(supabase);
 
       if (!authContext) {
         router.replace("/login");
@@ -93,9 +111,14 @@ export default function DriverPage() {
 
       const [
         driverResult,
+        companyResult,
         loadsResult,
         settlementsResult,
       ] = await Promise.all([
+        // ======================================================
+        // DRIVER
+        // ======================================================
+
         supabase
           .from("drivers")
           .select(`
@@ -106,8 +129,28 @@ export default function DriverPage() {
             phone,
             status
           `)
-          .eq("id", authContext.driverId)
+          .eq(
+            "id",
+            authContext.driverId
+          )
           .maybeSingle(),
+
+        // ======================================================
+        // CLIENT COMPANY
+        // ======================================================
+
+        supabase
+          .from("companies")
+          .select("name")
+          .eq(
+            "id",
+            authContext.companyId
+          )
+          .maybeSingle(),
+
+        // ======================================================
+        // DRIVER LOADS
+        // ======================================================
 
         supabase
           .from("loads")
@@ -126,7 +169,16 @@ export default function DriverPage() {
             truck_id,
             trailer_id
           `)
-          .order("pickup_date", { ascending: true }),
+          .order(
+            "pickup_date",
+            {
+              ascending: true,
+            }
+          ),
+
+        // ======================================================
+        // DRIVER SETTLEMENTS
+        // ======================================================
 
         supabase
           .from("driver_settlements")
@@ -141,47 +193,106 @@ export default function DriverPage() {
             status,
             paid_date
           `)
-          .order("period_end", { ascending: false })
+          .order(
+            "period_end",
+            {
+              ascending: false,
+            }
+          )
           .limit(5),
       ]);
+
+      // ========================================================
+      // DRIVER ERROR
+      // ========================================================
 
       if (driverResult.error) {
         console.error(
           "Driver profile query error:",
           driverResult.error
         );
+
         throw driverResult.error;
       }
+
+      // ========================================================
+      // COMPANY
+      //
+      // Do not crash the entire Driver Portal if company
+      // branding cannot load. Driver operations should continue.
+      // ========================================================
+
+      if (companyResult.error) {
+        console.error(
+          "Driver company query error:",
+          companyResult.error
+        );
+      }
+
+      // ========================================================
+      // LOADS ERROR
+      // ========================================================
 
       if (loadsResult.error) {
         console.error(
           "Driver loads query error:",
           loadsResult.error
         );
+
         throw loadsResult.error;
       }
+
+      // ========================================================
+      // SETTLEMENT ERROR
+      // ========================================================
 
       if (settlementsResult.error) {
         console.error(
           "Driver settlements query error:",
           settlementsResult.error
         );
+
         throw settlementsResult.error;
       }
 
+      // ========================================================
+      // SAVE DATA
+      // ========================================================
+
       setDriver(
-        driverResult.data as DriverRecord | null
+        driverResult.data as
+          | DriverRecord
+          | null
       );
 
+      if (
+        companyResult.data?.name
+      ) {
+        setCompanyName(
+          String(
+            companyResult.data.name
+          ).trim()
+        );
+      } else {
+        setCompanyName(
+          "Client Company"
+        );
+      }
+
       setLoads(
-        (loadsResult.data ?? []) as unknown as DriverLoad[]
+        (loadsResult.data ??
+          []) as unknown as DriverLoad[]
       );
 
       setSettlements(
-        (settlementsResult.data ?? []) as unknown as Settlement[]
+        (settlementsResult.data ??
+          []) as unknown as Settlement[]
       );
     } catch (err) {
-      console.error("Driver portal load error:", err);
+      console.error(
+        "Driver portal load error:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -197,7 +308,9 @@ export default function DriverPage() {
     setLoggingOut(true);
 
     try {
-      const { error: signOutError } =
+      const {
+        error: signOutError,
+      } =
         await supabase.auth.signOut();
 
       if (signOutError) {
@@ -205,60 +318,98 @@ export default function DriverPage() {
           "Driver logout error:",
           signOutError
         );
+
         throw signOutError;
       }
 
       router.replace("/login");
       router.refresh();
     } catch (err) {
-      console.error("Logout failed:", err);
+      console.error(
+        "Logout failed:",
+        err
+      );
+
       setLoggingOut(false);
     }
   }
 
-  const driverName = useMemo(() => {
-    if (!driver) {
-      return "Driver";
-    }
+  // ============================================================
+  // DRIVER NAME
+  // ============================================================
 
-    const name = [
-      driver.first_name,
-      driver.last_name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+  const driverName =
+    useMemo(() => {
+      if (!driver) {
+        return "Driver";
+      }
 
-    return name || "Driver";
-  }, [driver]);
+      const name = [
+        driver.first_name,
+        driver.last_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
 
-  const activeLoads = useMemo(() => {
-  const activeStatuses = [
-    "booked",
-    "dispatched",
-    "picked_up",
-    "in_transit",
-  ];
+      return (
+        name || "Driver"
+      );
+    }, [driver]);
 
-  return loads.filter((load) =>
-    activeStatuses.includes(load.status)
-  );
-}, [loads]);
+  // ============================================================
+  // ACTIVE LOADS
+  //
+  // Only loads still in the operational lifecycle count here.
+  // ============================================================
 
-const deliveredLoads = useMemo(() => {
-  const completedStatuses = [
-    "delivered",
-    "pod_received",
-    "invoiced",
-    "paid",
-  ];
+  const activeLoads =
+    useMemo(() => {
+      const activeStatuses = [
+        "booked",
+        "dispatched",
+        "picked_up",
+        "in_transit",
+      ];
 
-  return loads.filter((load) =>
-    completedStatuses.includes(load.status)
-  );
-}, [loads]);
+      return loads.filter(
+        (load) =>
+          activeStatuses.includes(
+            load.status
+          )
+      );
+    }, [loads]);
 
-  const latestSettlement = settlements[0] ?? null;
+  // ============================================================
+  // COMPLETED LOADS
+  //
+  // A delivered load remains completed after POD, invoice,
+  // and payment.
+  // ============================================================
+
+  const deliveredLoads =
+    useMemo(() => {
+      const completedStatuses = [
+        "delivered",
+        "pod_received",
+        "invoiced",
+        "paid",
+      ];
+
+      return loads.filter(
+        (load) =>
+          completedStatuses.includes(
+            load.status
+          )
+      );
+    }, [loads]);
+
+  const latestSettlement =
+    settlements[0] ?? null;
+
+  // ============================================================
+  // FORMAT HELPERS
+  // ============================================================
 
   function formatLocation(
     location: string | null,
@@ -269,33 +420,54 @@ const deliveredLoads = useMemo(() => {
       return location;
     }
 
-    const parts = [city, state].filter(Boolean);
+    const parts = [
+      city,
+      state,
+    ].filter(Boolean);
 
     return parts.length
       ? parts.join(", ")
       : "—";
   }
 
-  function formatDate(value: string | null) {
+  function formatDate(
+    value: string | null
+  ) {
     if (!value) {
       return "—";
     }
 
-    const date = new Date(value);
+    const date =
+      new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
       return "—";
     }
 
     return date.toLocaleString();
   }
 
-  function money(value: number) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(value || 0);
+  function money(
+    value: number
+  ) {
+    return new Intl.NumberFormat(
+      "en-US",
+      {
+        style: "currency",
+        currency: "USD",
+      }
+    ).format(
+      value || 0
+    );
   }
+
+  // ============================================================
+  // LOADING SCREEN
+  // ============================================================
 
   if (loading) {
     return (
@@ -307,55 +479,89 @@ const deliveredLoads = useMemo(() => {
     );
   }
 
+  // ============================================================
+  // DRIVER PORTAL
+  // ============================================================
+
   return (
     <main className="min-h-screen bg-slate-50">
+      {/* ========================================================
+          TOP BRANDING HEADER
+      ======================================================== */}
+
       <div className="border-b border-slate-800 bg-slate-950 text-white">
-  <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-    <div className="flex items-center gap-5">
-      <FleetOSBrand variant="sidebar" />
+        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+          {/* LEFT SIDE */}
 
-      <div className="hidden h-10 w-px bg-slate-700 sm:block" />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
+            <FleetOSBrand
+              variant="sidebar"
+            />
 
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
-          Driver Workspace
-        </p>
+            <div className="hidden h-12 w-px bg-slate-700 sm:block" />
 
-        <h1 className="mt-1 text-xl font-bold text-white">
-          Driver Portal
-        </h1>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
+                Driver Workspace
+              </p>
+
+              <h1 className="mt-1 max-w-md truncate text-lg font-bold text-white">
+                {companyName}
+              </h1>
+
+              <p className="mt-0.5 text-xs font-medium text-slate-300">
+                Driver Portal
+              </p>
+            </div>
+          </div>
+
+          {/* RIGHT SIDE */}
+
+          <div className="flex items-center justify-between gap-4 sm:justify-end">
+            <div className="text-left sm:text-right">
+              <p className="font-semibold text-white">
+                {driverName}
+              </p>
+
+              <p className="text-xs text-slate-300">
+                {roleLabel(
+                  auth?.role
+                )}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={
+                loggingOut
+              }
+              onClick={() =>
+                void handleLogout()
+              }
+              className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+            >
+              {loggingOut
+                ? "Logging out..."
+                : "Logout"}
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div className="flex items-center justify-between gap-4 sm:justify-end">
-      <div className="text-left sm:text-right">
-        <p className="font-semibold text-white">
-          {driverName}
-        </p>
-
-        <p className="text-xs text-slate-300">
-          {roleLabel(auth?.role)}
-        </p>
-      </div>
-
-      <button
-        type="button"
-        disabled={loggingOut}
-        onClick={() => void handleLogout()}
-        className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
-      >
-        {loggingOut ? "Logging out..." : "Logout"}
-      </button>
-    </div>
-  </div>
-</div>
+      {/* ========================================================
+          CONTENT
+      ======================================================== */}
 
       <div className="mx-auto max-w-6xl space-y-6 px-5 py-8">
+        {/* ERROR */}
+
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
             {error}
           </div>
         )}
+
+        {/* WELCOME */}
 
         <section>
           <p className="text-sm font-medium text-slate-500">
@@ -367,36 +573,60 @@ const deliveredLoads = useMemo(() => {
           </h2>
 
           <p className="mt-2 text-slate-600">
-            View your assigned loads, delivery information,
+            View your assigned loads,
+            delivery information,
             documents and pay.
           </p>
+
+          <p className="mt-1 text-sm font-medium text-blue-600">
+            {companyName}
+          </p>
         </section>
+
+        {/* ======================================================
+            SUMMARY CARDS
+        ====================================================== */}
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
             label="Active Loads"
-            value={String(activeLoads.length)}
+            value={String(
+              activeLoads.length
+            )}
           />
 
           <SummaryCard
             label="Delivered Loads"
-            value={String(deliveredLoads.length)}
+            value={String(
+              deliveredLoads.length
+            )}
           />
 
           <SummaryCard
             label="Latest Net Pay"
             value={
               latestSettlement
-                ? money(Number(latestSettlement.net_pay))
+                ? money(
+                    Number(
+                      latestSettlement.net_pay
+                    )
+                  )
                 : "$0.00"
             }
           />
 
           <SummaryCard
             label="Driver Status"
-            value={driver?.status ?? "—"}
+            value={
+              driver?.status ??
+              "—"
+            }
           />
         </section>
+
+        {/* ======================================================
+            MY LOADS
+        ====================================================== */}
 
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-6 py-5">
@@ -405,87 +635,116 @@ const deliveredLoads = useMemo(() => {
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              Only loads assigned to your driver account are shown.
+              Only loads assigned to
+              your driver account are
+              shown.
             </p>
           </div>
 
           {loads.length === 0 ? (
             <div className="px-6 py-12 text-center text-slate-500">
-              No loads are currently assigned to you.
+              No loads are currently
+              assigned to you.
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {loads.map((load) => (
-                <div
-                  key={load.id}
-                  className="grid gap-5 px-6 py-6 lg:grid-cols-[140px_1fr_1fr_160px]"
-                >
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Load #
-                    </p>
+              {loads.map(
+                (load) => (
+                  <div
+                    key={
+                      load.id
+                    }
+                    className="grid gap-5 px-6 py-6 lg:grid-cols-[140px_1fr_1fr_160px]"
+                  >
+                    {/* LOAD NUMBER */}
 
-                    <p className="mt-1 text-lg font-bold text-slate-950">
-                      {load.load_number}
-                    </p>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Load #
+                      </p>
+
+                      <p className="mt-1 text-lg font-bold text-slate-950">
+                        {
+                          load.load_number
+                        }
+                      </p>
+                    </div>
+
+                    {/* PICKUP */}
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Pickup
+                      </p>
+
+                      <p className="mt-1 font-semibold text-slate-800">
+                        {formatLocation(
+                          load.pickup_location,
+                          load.pickup_city,
+                          load.pickup_state
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatDate(
+                          load.pickup_date
+                        )}
+                      </p>
+                    </div>
+
+                    {/* DELIVERY */}
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Delivery
+                      </p>
+
+                      <p className="mt-1 font-semibold text-slate-800">
+                        {formatLocation(
+                          load.delivery_location,
+                          load.delivery_city,
+                          load.delivery_state
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatDate(
+                          load.delivery_date
+                        )}
+                      </p>
+                    </div>
+
+                    {/* STATUS / VIEW */}
+
+                    <div className="flex flex-col items-start gap-3 lg:items-end">
+                      <StatusBadge
+                        status={
+                          load.status
+                        }
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/driver/load/${load.id}`
+                          )
+                        }
+                        className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        View Load
+                      </button>
+                    </div>
                   </div>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Pickup
-                    </p>
-
-                    <p className="mt-1 font-semibold text-slate-800">
-                      {formatLocation(
-                        load.pickup_location,
-                        load.pickup_city,
-                        load.pickup_state
-                      )}
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      {formatDate(load.pickup_date)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Delivery
-                    </p>
-
-                    <p className="mt-1 font-semibold text-slate-800">
-                      {formatLocation(
-                        load.delivery_location,
-                        load.delivery_city,
-                        load.delivery_state
-                      )}
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      {formatDate(load.delivery_date)}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col items-start gap-3 lg:items-end">
-                    <StatusBadge status={load.status} />
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(
-                          `/driver/load/${load.id}`
-                        )
-                      }
-                      className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                    >
-                      View Load
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
           )}
         </section>
+
+        {/* ======================================================
+            RECENT PAY
+        ====================================================== */}
 
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-6 py-5">
@@ -494,13 +753,16 @@ const deliveredLoads = useMemo(() => {
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              Only your own settlement records are shown.
+              Only your own settlement
+              records are shown.
             </p>
           </div>
 
-          {settlements.length === 0 ? (
+          {settlements.length ===
+          0 ? (
             <div className="px-6 py-12 text-center text-slate-500">
-              No settlement records are available yet.
+              No settlement records
+              are available yet.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -534,58 +796,90 @@ const deliveredLoads = useMemo(() => {
                 </thead>
 
                 <tbody className="divide-y divide-slate-200">
-                  {settlements.map((settlement) => (
-                    <tr key={settlement.id}>
-                      <td className="px-6 py-4 font-semibold text-slate-900">
-                        {settlement.settlement_number}
-                      </td>
+                  {settlements.map(
+                    (
+                      settlement
+                    ) => (
+                      <tr
+                        key={
+                          settlement.id
+                        }
+                      >
+                        <td className="px-6 py-4 font-semibold text-slate-900">
+                          {
+                            settlement.settlement_number
+                          }
+                        </td>
 
-                      <td className="px-6 py-4 text-slate-600">
-                        {new Date(
-                          `${settlement.period_start}T00:00:00`
-                        ).toLocaleDateString()}
-                        {" - "}
-                        {new Date(
-                          `${settlement.period_end}T00:00:00`
-                        ).toLocaleDateString()}
-                      </td>
+                        <td className="px-6 py-4 text-slate-600">
+                          {new Date(
+                            `${settlement.period_start}T00:00:00`
+                          ).toLocaleDateString()}
 
-                      <td className="px-6 py-4 text-slate-700">
-                        {money(
-                          Number(settlement.gross_pay)
-                        )}
-                      </td>
+                          {" - "}
 
-                      <td className="px-6 py-4 text-slate-700">
-                        {money(
-                          Number(
-                            settlement.total_deductions
-                          )
-                        )}
-                      </td>
+                          {new Date(
+                            `${settlement.period_end}T00:00:00`
+                          ).toLocaleDateString()}
+                        </td>
 
-                      <td className="px-6 py-4 font-bold text-slate-950">
-                        {money(
-                          Number(settlement.net_pay)
-                        )}
-                      </td>
+                        <td className="px-6 py-4 text-slate-700">
+                          {money(
+                            Number(
+                              settlement.gross_pay
+                            )
+                          )}
+                        </td>
 
-                      <td className="px-6 py-4">
-                        <StatusBadge
-                          status={settlement.status}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-6 py-4 text-slate-700">
+                          {money(
+                            Number(
+                              settlement.total_deductions
+                            )
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 font-bold text-slate-950">
+                          {money(
+                            Number(
+                              settlement.net_pay
+                            )
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <StatusBadge
+                            status={
+                              settlement.status
+                            }
+                          />
+                        </td>
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
           )}
         </section>
+
+        {/* ======================================================
+            PLATINUM FOOTER
+        ====================================================== */}
+
+        <footer className="border-t border-slate-200 py-5">
+          <FleetOSBrand
+            variant="footer"
+          />
+        </footer>
       </div>
     </main>
   );
 }
+
+// ============================================================
+// SUMMARY CARD
+// ============================================================
 
 function SummaryCard({
   label,
@@ -607,6 +901,10 @@ function SummaryCard({
   );
 }
 
+// ============================================================
+// STATUS BADGE
+// ============================================================
+
 function StatusBadge({
   status,
 }: {
@@ -618,24 +916,34 @@ function StatusBadge({
   if (
     status === "active" ||
     status === "delivered" ||
+    status ===
+      "pod_received" ||
     status === "paid"
   ) {
     classes =
       "bg-emerald-100 text-emerald-700";
   } else if (
     status === "booked" ||
-    status === "in_transit"
+    status ===
+      "dispatched" ||
+    status ===
+      "picked_up" ||
+    status ===
+      "in_transit"
   ) {
     classes =
       "bg-blue-100 text-blue-700";
   } else if (
-    status === "maintenance" ||
-    status === "pending"
+    status ===
+      "maintenance" ||
+    status === "pending" ||
+    status === "invoiced"
   ) {
     classes =
       "bg-amber-100 text-amber-700";
   } else if (
-    status === "cancelled" ||
+    status ===
+      "cancelled" ||
     status === "inactive"
   ) {
     classes =
@@ -646,7 +954,10 @@ function StatusBadge({
     <span
       className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classes}`}
     >
-      {status.replaceAll("_", " ")}
+      {status.replaceAll(
+        "_",
+        " "
+      )}
     </span>
   );
 }
