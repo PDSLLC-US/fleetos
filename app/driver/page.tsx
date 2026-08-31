@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import FleetOSBrand from "@/components/FleetOSBrand";
 import {
   getAuthRole,
   roleLabel,
@@ -308,40 +309,46 @@ const deliveredLoads = useMemo(() => {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="border-b border-slate-200 bg-slate-950 text-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-300">
-              FleetOS
-            </p>
+      <div className="border-b border-slate-800 bg-slate-950 text-white">
+  <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center gap-5">
+      <FleetOSBrand variant="sidebar" />
 
-            <h1 className="mt-1 text-2xl font-bold">
-              Driver Portal
-            </h1>
-          </div>
+      <div className="hidden h-10 w-px bg-slate-700 sm:block" />
 
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="font-semibold">
-                {driverName}
-              </p>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
+          Driver Workspace
+        </p>
 
-              <p className="text-xs text-slate-300">
-                {roleLabel(auth?.role)}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              disabled={loggingOut}
-              onClick={() => void handleLogout()}
-              className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
-            >
-              {loggingOut ? "Logging out..." : "Logout"}
-            </button>
-          </div>
-        </div>
+        <h1 className="mt-1 text-xl font-bold text-white">
+          Driver Portal
+        </h1>
       </div>
+    </div>
+
+    <div className="flex items-center justify-between gap-4 sm:justify-end">
+      <div className="text-left sm:text-right">
+        <p className="font-semibold text-white">
+          {driverName}
+        </p>
+
+        <p className="text-xs text-slate-300">
+          {roleLabel(auth?.role)}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        disabled={loggingOut}
+        onClick={() => void handleLogout()}
+        className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+      >
+        {loggingOut ? "Logging out..." : "Logout"}
+      </button>
+    </div>
+  </div>
+</div>
 
       <div className="mx-auto max-w-6xl space-y-6 px-5 py-8">
         {error && (
