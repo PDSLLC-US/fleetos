@@ -257,6 +257,13 @@ type DashboardData = {
   operatingExpenses: number;
   netProfit: number;
 
+  dispatcherWeeklyRevenue: number;
+  dispatcherMonthlyRevenue: number;
+  dispatcherWeekStart: string;
+  dispatcherWeekEnd: string;
+  dispatcherMonthStart: string;
+  dispatcherMonthEnd: string;
+
   outstandingReceivables: number;
   overdueReceivables: number;
   dueThisWeek: number;
@@ -275,66 +282,63 @@ type NumericKpiKey =
   | "totalRevenue"
   | "driverPayroll"
   | "operatingExpenses"
-  | "netProfit";
+  | "netProfit"
+  | "dispatcherWeeklyRevenue"
+  | "dispatcherMonthlyRevenue";
 
-const kpiCards: {
+type KpiCard = {
   title: string;
-  dataKey:
-    NumericKpiKey;
+  dataKey: NumericKpiKey;
   trendLabel: string;
   color: string;
   icon: string;
-}[] = [
-  {
-    title:
-      "Total Revenue",
-    dataKey:
-      "totalRevenue",
-    trendLabel:
-      "Current data",
-    color:
-      "text-emerald-600",
-    icon:
-      "M5 12h14M5 18h14M9 6h6",
-  },
+};
 
+const fullFinanceKpiCards: KpiCard[] = [
   {
-    title:
-      "Driver Payroll",
-    dataKey:
-      "driverPayroll",
-    trendLabel:
-      "Current data",
-    color:
-      "text-emerald-600",
-    icon:
-      "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm-6 14v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2",
+    title: "Total Revenue",
+    dataKey: "totalRevenue",
+    trendLabel: "Current data",
+    color: "text-emerald-600",
+    icon: "M5 12h14M5 18h14M9 6h6",
   },
-
   {
-    title:
-      "Operating Expenses",
-    dataKey:
-      "operatingExpenses",
-    trendLabel:
-      "Current data",
-    color:
-      "text-amber-600",
-    icon:
-      "M4 6h16M4 10h16M4 14h10",
+    title: "Driver Payroll",
+    dataKey: "driverPayroll",
+    trendLabel: "Current data",
+    color: "text-emerald-600",
+    icon: "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm-6 14v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2",
   },
-
   {
-    title:
-      "Net Profit",
-    dataKey:
-      "netProfit",
-    trendLabel:
-      "Current data",
-    color:
-      "text-emerald-600",
-    icon:
-      "M5 12l5 5 9-10",
+    title: "Operating Expenses",
+    dataKey: "operatingExpenses",
+    trendLabel: "Current data",
+    color: "text-amber-600",
+    icon: "M4 6h16M4 10h16M4 14h10",
+  },
+  {
+    title: "Net Profit",
+    dataKey: "netProfit",
+    trendLabel: "Current data",
+    color: "text-emerald-600",
+    icon: "M5 12l5 5 9-10",
+  },
+];
+
+const dispatcherKpiCards: KpiCard[] = [
+  {
+    title: "Total Revenue Weekly",
+    dataKey: "dispatcherWeeklyRevenue",
+    trendLabel: "Pickup dates Monday through Sunday",
+    color: "text-emerald-600",
+    icon: "M5 12h14M5 18h14M9 6h6",
+  },
+  {
+    title: "Total Revenue Monthly",
+    dataKey: "dispatcherMonthlyRevenue",
+    trendLabel: "Pickup dates in the current calendar month",
+    color: "text-emerald-600",
+    icon: "M4 6h16M4 12h16M4 18h16",
   },
 ];
 
@@ -435,6 +439,13 @@ export default function Home() {
       operatingExpenses: 0,
       netProfit: 0,
 
+      dispatcherWeeklyRevenue: 0,
+      dispatcherMonthlyRevenue: 0,
+      dispatcherWeekStart: "",
+      dispatcherWeekEnd: "",
+      dispatcherMonthStart: "",
+      dispatcherMonthEnd: "",
+
       outstandingReceivables: 0,
       overdueReceivables: 0,
       dueThisWeek: 0,
@@ -476,6 +487,25 @@ export default function Home() {
           authContext.role
         ]
       : [];
+
+  const isDispatcher =
+    authContext?.role ===
+    "dispatcher";
+
+  const canViewFullFinancialDashboard =
+    authContext?.role ===
+      "owner" ||
+    authContext?.role ===
+      "admin" ||
+    authContext?.role ===
+      "accountant";
+
+  const visibleKpiCards =
+    isDispatcher
+      ? dispatcherKpiCards
+      : canViewFullFinancialDashboard
+        ? fullFinanceKpiCards
+        : [];
 
   function formatCurrency(
     value: number
@@ -1258,11 +1288,11 @@ export default function Home() {
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                  Overview of
-                  your fleet
-                  operations and
-                  financial
-                  performance.
+                  {isDispatcher
+                    ? "Operational performance and pickup-based revenue for your current week and month."
+                    : canViewFullFinancialDashboard
+                      ? "Overview of your fleet operations and financial performance."
+                      : "Overview of your fleet operations and equipment readiness."}
                 </p>
               </div>
 
@@ -1338,8 +1368,9 @@ export default function Home() {
 
             {/* KPI CARDS */}
 
+            {visibleKpiCards.length > 0 ? (
             <section className="mt-8 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-              {kpiCards.map(
+              {visibleKpiCards.map(
                 (card) => (
                   <article
                     key={
@@ -1399,6 +1430,7 @@ export default function Home() {
                 )
               )}
             </section>
+            ) : null}
 
             {/* LOAD OVERVIEW + FLEET STATUS */}
 
@@ -1621,6 +1653,7 @@ export default function Home() {
 
             {/* RECEIVABLES + PROFITABILITY */}
 
+            {canViewFullFinancialDashboard ? (
             <div className="mt-8 grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
@@ -1924,6 +1957,7 @@ export default function Home() {
                 </div>
               </section>
             </div>
+            ) : null}
 
             {/* RECENT LOADS */}
 
