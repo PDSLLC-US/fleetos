@@ -1,14 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
+
 import { createClient } from "@/lib/supabase/client";
+
 import {
   getAuthRole,
   type AuthRoleContext,
 } from "@/lib/auth-role";
 
-type DriverLoad = {
+type Load = {
   id: string;
   company_id: string;
   load_number: string;
@@ -43,29 +54,28 @@ type LoadDocument = {
   created_at: string;
 };
 
-const MAX_FILE_SIZE =
-  10 * 1024 * 1024;
+type StatusAction = {
+  nextStatus: string;
+  buttonLabel: string;
+  description: string;
+};
 
 const DRIVER_STATUS_FLOW: Record<
   string,
-  {
-    nextStatus: string;
-    buttonLabel: string;
-    description: string;
-  }
+  StatusAction
 > = {
   booked: {
     nextStatus: "dispatched",
     buttonLabel: "Start Dispatch",
     description:
-      "Confirm that you have received and accepted this load.",
+      "Confirm that you have received the load and are beginning dispatch.",
   },
 
   dispatched: {
     nextStatus: "picked_up",
     buttonLabel: "Mark Picked Up",
     description:
-      "Use this after the freight has been picked up.",
+      "Confirm that the freight has been picked up.",
   },
 
   picked_up: {
@@ -79,48 +89,63 @@ const DRIVER_STATUS_FLOW: Record<
     nextStatus: "delivered",
     buttonLabel: "Mark Delivered",
     description:
-      "Use this only after the load has been delivered.",
+      "Confirm that the shipment has been delivered.",
   },
 };
 
 export default function DriverLoadPage() {
   const router = useRouter();
-  const params = useParams();
-  const supabase = createClient();
 
-  const loadId = String(
-    params.id ?? ""
-  );
+  const params = useParams<{
+    id: string;
+  }>();
 
-  const [auth, setAuth] =
+  const supabase =
+    createClient();
+
+  const loadId =
+    typeof params?.id ===
+    "string"
+      ? params.id
+      : "";
+
+  const [
+    auth,
+    setAuth,
+  ] =
     useState<AuthRoleContext | null>(
       null
     );
 
-  const [load, setLoad] =
-    useState<DriverLoad | null>(
+  const [
+    load,
+    setLoad,
+  ] =
+    useState<Load | null>(
       null
     );
 
-  const [documents, setDocuments] =
-    useState<LoadDocument[]>([]);
+  const [
+    documents,
+    setDocuments,
+  ] = useState<
+    LoadDocument[]
+  >([]);
 
-  const [loading, setLoading] =
-    useState(true);
-
-  const [uploading, setUploading] =
-    useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
   const [
     updatingStatus,
     setUpdatingStatus,
   ] = useState(false);
 
-  const [error, setError] =
-    useState("");
-
-  const [success, setSuccess] =
-    useState("");
+  const [
+    uploading,
+    setUploading,
+  ] = useState(false);
 
   const [
     documentType,
@@ -130,160 +155,265 @@ export default function DriverLoadPage() {
   const [
     selectedFile,
     setSelectedFile,
-  ] = useState<File | null>(null);
-
-  useEffect(() => {
-    void initializePage();
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadId]);
-
-  async function initializePage() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const authContext =
-        await getAuthRole(
-          supabase
-        );
-
-      if (!authContext) {
-        router.replace("/login");
-        return;
-      }
-
-      if (
-        authContext.role !==
-        "driver"
-      ) {
-        router.replace("/");
-        return;
-      }
-
-      if (
-        !authContext.driverId
-      ) {
-        throw new Error(
-          "Your FleetOS login is not linked to a driver record."
-        );
-      }
-
-      setAuth(authContext);
-
-      await loadAssignedLoad();
-      await loadDocuments();
-    } catch (err: unknown) {
-      console.error(
-        "Driver load page initialization error:",
-        err
-      );
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load this assigned load."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadAssignedLoad() {
-    const {
-      data,
-      error: loadError,
-    } = await supabase
-      .from("loads")
-      .select(`
-        id,
-        company_id,
-        load_number,
-        driver_id,
-        truck_id,
-        trailer_id,
-        equipment_type,
-        pickup_location,
-        pickup_city,
-        pickup_state,
-        pickup_date,
-        delivery_location,
-        delivery_city,
-        delivery_state,
-        delivery_date,
-        miles,
-        status,
-        notes
-      `)
-      .eq("id", loadId)
-      .maybeSingle();
-
-    if (loadError) {
-      console.error(
-        "Assigned load query error:",
-        loadError.message,
-        loadError.code,
-        loadError.details,
-        loadError.hint
-      );
-
-      throw new Error(
-        loadError.message ||
-          "Unable to retrieve this load."
-      );
-    }
-
-    if (!data) {
-      throw new Error(
-        "This load is not assigned to your driver account or is no longer available."
-      );
-    }
-
-    setLoad(
-      data as DriverLoad
+  ] =
+    useState<File | null>(
+      null
     );
-  }
 
-  async function loadDocuments() {
-    const {
-      data,
-      error: documentsError,
-    } = await supabase
-      .from("load_documents")
-      .select(`
-        id,
-        company_id,
-        load_id,
-        document_type,
-        file_name,
-        file_path,
-        uploaded_by,
-        created_at
-      `)
-      .eq("load_id", loadId)
-      .order("created_at", {
-        ascending: false,
-      });
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-    if (documentsError) {
-      console.error(
-        "Load documents query error:",
-        documentsError.message
-      );
-
-      throw new Error(
-        documentsError.message ||
-          "Unable to retrieve load documents."
-      );
-    }
-
-    setDocuments(
-      (data ?? []) as LoadDocument[]
-    );
-  }
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
 
   // ============================================================
-  // DRIVER STATUS UPDATE
+  // LOAD ASSIGNED LOAD
+  // ============================================================
+
+  const loadAssignedLoad =
+    useCallback(
+      async () => {
+        if (!loadId) {
+          setError(
+            "Invalid load."
+          );
+
+          setLoad(null);
+
+          return;
+        }
+
+        const {
+          data,
+          error:
+            loadError,
+        } =
+          await supabase
+            .from("loads")
+            .select(`
+              id,
+              company_id,
+              load_number,
+              driver_id,
+              truck_id,
+              trailer_id,
+              equipment_type,
+              pickup_location,
+              pickup_city,
+              pickup_state,
+              pickup_date,
+              delivery_location,
+              delivery_city,
+              delivery_state,
+              delivery_date,
+              miles,
+              status,
+              notes
+            `)
+            .eq(
+              "id",
+              loadId
+            )
+            .maybeSingle();
+
+        if (loadError) {
+          console.error(
+            "Assigned load query error:",
+            loadError
+          );
+
+          setError(
+            "Unable to load this assigned load."
+          );
+
+          setLoad(null);
+
+          return;
+        }
+
+        if (!data) {
+          setError(
+            "This load is not assigned to your Driver Portal account."
+          );
+
+          setLoad(null);
+
+          return;
+        }
+
+        setLoad(
+          data as Load
+        );
+      },
+      [
+        loadId,
+        supabase,
+      ]
+    );
+
+  // ============================================================
+  // LOAD DOCUMENTS
+  // ============================================================
+
+  const loadDocuments =
+    useCallback(
+      async () => {
+        if (!loadId) {
+          return;
+        }
+
+        const {
+          data,
+          error:
+            documentError,
+        } =
+          await supabase
+            .from(
+              "load_documents"
+            )
+            .select(`
+              id,
+              company_id,
+              load_id,
+              document_type,
+              file_name,
+              file_path,
+              uploaded_by,
+              created_at
+            `)
+            .eq(
+              "load_id",
+              loadId
+            )
+            .order(
+              "created_at",
+              {
+                ascending:
+                  false,
+              }
+            );
+
+        if (
+          documentError
+        ) {
+          console.error(
+            "Load documents query error:",
+            documentError
+          );
+
+          return;
+        }
+
+        setDocuments(
+          (data as LoadDocument[]) ??
+            []
+        );
+      },
+      [
+        loadId,
+        supabase,
+      ]
+    );
+
+  // ============================================================
+  // INITIALIZE
+  // ============================================================
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function initialize() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const roleContext =
+          await getAuthRole(
+            supabase
+          );
+
+        if (!mounted) {
+          return;
+        }
+
+        if (
+          !roleContext
+        ) {
+          router.replace(
+            "/login"
+          );
+
+          return;
+        }
+
+        if (
+          roleContext.role !==
+          "driver"
+        ) {
+          router.replace(
+            "/"
+          );
+
+          return;
+        }
+
+        if (
+          !roleContext.driverId
+        ) {
+          setError(
+            "Your FleetOS account is not connected to a driver record."
+          );
+
+          return;
+        }
+
+        setAuth(
+          roleContext
+        );
+
+        await Promise.all([
+          loadAssignedLoad(),
+          loadDocuments(),
+        ]);
+      } catch (err) {
+        console.error(
+          "Driver load initialization error:",
+          err
+        );
+
+        if (mounted) {
+          setError(
+            err instanceof
+              Error
+              ? err.message
+              : "Unable to load Driver Portal."
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void initialize();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    loadAssignedLoad,
+    loadDocuments,
+    router,
+    supabase,
+  ]);
+
+  // ============================================================
+  // DRIVER LOAD STATUS UPDATE
   // ============================================================
 
   async function updateLoadStatus() {
@@ -291,77 +421,59 @@ export default function DriverLoadPage() {
       return;
     }
 
-    const statusAction =
+    const action =
       DRIVER_STATUS_FLOW[
         load.status
       ];
 
-    if (!statusAction) {
+    if (!action) {
       return;
     }
 
-    const confirmed =
-      window.confirm(
-        `Change Load #${load.load_number} from "${prettyStatus(
-          load.status
-        )}" to "${prettyStatus(
-          statusAction.nextStatus
-        )}"?`
-      );
+    setUpdatingStatus(
+      true
+    );
 
-    if (!confirmed) {
-      return;
-    }
-
-    setUpdatingStatus(true);
     setError("");
     setSuccess("");
 
     try {
       const {
-        data,
-        error: rpcError,
-      } = await supabase.rpc(
-        "driver_update_load_status",
-        {
-          target_load_id:
-            load.id,
+        error:
+          statusError,
+      } =
+        await supabase.rpc(
+          "driver_update_load_status",
+          {
+            target_load_id:
+              load.id,
 
-          new_status:
-            statusAction.nextStatus,
-        }
-      );
+            new_status:
+              action.nextStatus,
+          }
+        );
 
-      if (rpcError) {
+      if (statusError) {
         console.error(
           "Driver status update error:",
-          rpcError.message,
-          rpcError.code,
-          rpcError.details,
-          rpcError.hint
+          statusError
         );
 
         throw new Error(
-          rpcError.message ||
-            "Unable to update load status."
+          statusError.message
         );
       }
 
-      console.log(
-        "Driver status update result:",
-        data
-      );
-
       setSuccess(
         `Load status updated to ${prettyStatus(
-          statusAction.nextStatus
+          action.nextStatus
         )}.`
       );
 
       await loadAssignedLoad();
-    } catch (err: unknown) {
+    } catch (err) {
       console.error(
-        "Driver load status error:",
+        "Load status update error:",
         err
       );
 
@@ -371,118 +483,120 @@ export default function DriverLoadPage() {
           : "Unable to update load status."
       );
     } finally {
-      setUpdatingStatus(false);
+      setUpdatingStatus(
+        false
+      );
     }
+  }
+
+  // ============================================================
+  // FILE NAME CLEANER
+  // ============================================================
+
+  function cleanFileName(
+    name: string
+  ) {
+    return name
+      .trim()
+      .replace(
+        /[^a-zA-Z0-9._-]/g,
+        "-"
+      );
   }
 
   // ============================================================
   // DOCUMENT UPLOAD
   // ============================================================
 
-  function cleanFileName(
-    fileName: string
-  ) {
-    return fileName
-      .trim()
-      .replace(
-        /[^a-zA-Z0-9._-]/g,
-        "-"
-      )
-      .replace(/-+/g, "-");
-  }
-
   async function handleUpload(
-    event: React.FormEvent<HTMLFormElement>
+    event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
     setError("");
     setSuccess("");
 
-    if (!auth || !load) {
+    if (
+      !auth ||
+      !load
+    ) {
       setError(
-        "Unable to verify your FleetOS account."
+        "Driver session or load information is unavailable."
       );
+
       return;
     }
 
     if (!selectedFile) {
       setError(
-        "Please select a document."
+        "Choose a document to upload."
       );
+
+      return;
+    }
+
+    const allowedTypes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+    ];
+
+    if (
+      !allowedTypes.includes(
+        selectedFile.type
+      )
+    ) {
+      setError(
+        "Only PDF, JPG and PNG files are allowed."
+      );
+
       return;
     }
 
     if (
       selectedFile.size >
-      MAX_FILE_SIZE
+      10 *
+        1024 *
+        1024
     ) {
       setError(
-        "The maximum allowed file size is 10 MB."
+        "The maximum file size is 10 MB."
       );
-      return;
-    }
 
-    const allowedExtensions = [
-      ".pdf",
-      ".jpg",
-      ".jpeg",
-      ".png",
-    ];
-
-    const fileName =
-      selectedFile.name.toLowerCase();
-
-    if (
-      !allowedExtensions.some(
-        (extension) =>
-          fileName.endsWith(
-            extension
-          )
-      )
-    ) {
-      setError(
-        "Only PDF, JPG, JPEG and PNG documents are allowed."
-      );
-      return;
-    }
-
-    if (
-      documentType !== "pod" &&
-      documentType !== "bol"
-    ) {
-      setError(
-        "Drivers may upload only POD or BOL documents."
-      );
       return;
     }
 
     setUploading(true);
 
     try {
-      const storedFileName =
-        `${Date.now()}-${cleanFileName(
+      const fileName =
+        cleanFileName(
           selectedFile.name
-        )}`;
+        );
 
       const filePath =
-        `${auth.companyId}/${load.id}/${storedFileName}`;
+        `${auth.companyId}/${load.id}/${Date.now()}-${fileName}`;
 
       // ========================================================
-      // 1. UPLOAD ACTUAL FILE
+      // 1. UPLOAD PRIVATE FILE
       // ========================================================
 
       const {
-        error: uploadError,
-      } = await supabase.storage
-        .from("fleet-documents")
-        .upload(
-          filePath,
-          selectedFile,
-          {
-            upsert: false,
-          }
-        );
+        error:
+          uploadError,
+      } =
+        await supabase.storage
+          .from(
+            "fleet-documents"
+          )
+          .upload(
+            filePath,
+            selectedFile,
+            {
+              upsert:
+                false,
+            }
+          );
 
       if (uploadError) {
         console.error(
@@ -496,44 +610,45 @@ export default function DriverLoadPage() {
       }
 
       // ========================================================
-      // 2. CREATE DOCUMENT DATABASE RECORD
+      // 2. CREATE DATABASE RECORD
       // ========================================================
 
       const {
-        error: metadataError,
-      } = await supabase
-        .from("load_documents")
-        .insert({
-          company_id:
-            auth.companyId,
+        error:
+          metadataError,
+      } =
+        await supabase
+          .from(
+            "load_documents"
+          )
+          .insert({
+            company_id:
+              auth.companyId,
 
-          load_id:
-            load.id,
+            load_id:
+              load.id,
 
-          document_type:
-            documentType,
+            document_type:
+              documentType,
 
-          file_name:
-            selectedFile.name,
+            file_name:
+              selectedFile.name,
 
-          file_path:
-            filePath,
+            file_path:
+              filePath,
 
-          uploaded_by:
-            auth.userId,
-        });
+            uploaded_by:
+              auth.userId,
+          });
 
       if (metadataError) {
-        /*
-         * Remove the uploaded file if
-         * database metadata creation fails.
-         */
-
         await supabase.storage
           .from(
             "fleet-documents"
           )
-          .remove([filePath]);
+          .remove([
+            filePath,
+          ]);
 
         console.error(
           "Document record error:",
@@ -546,53 +661,33 @@ export default function DriverLoadPage() {
       }
 
       // ========================================================
-      // 3. AUTOMATIC POD_RECEIVED
-      //
-      // Only do this when:
-      //
-      // document = POD
-      // AND
-      // load is currently delivered
-      //
-      // The database function independently verifies:
-      // - logged-in user
-      // - driver role
-      // - company
-      // - assigned driver
-      // - delivered status
-      // - actual POD record exists
+      // 3. AUTOMATIC POD RECEIVED
       // ========================================================
 
-      let podStatusUpdated = false;
+      let podStatusUpdated =
+        false;
 
       if (
-        documentType === "pod" &&
+        documentType ===
+          "pod" &&
         load.status ===
           "delivered"
       ) {
         const {
-          data: podResult,
-          error: podError,
-        } = await supabase.rpc(
-          "driver_confirm_pod_received",
-          {
-            target_load_id:
-              load.id,
-          }
-        );
+          data:
+            podResult,
+          error:
+            podError,
+        } =
+          await supabase.rpc(
+            "driver_confirm_pod_received",
+            {
+              target_load_id:
+                load.id,
+            }
+          );
 
         if (podError) {
-          /*
-           * IMPORTANT:
-           *
-           * The POD itself has already been
-           * uploaded successfully.
-           *
-           * We therefore DO NOT delete the POD
-           * just because automatic status processing
-           * had a problem.
-           */
-
           console.error(
             "Automatic POD status error:",
             podError.message,
@@ -620,14 +715,16 @@ export default function DriverLoadPage() {
       // ========================================================
 
       if (
-        documentType === "pod" &&
+        documentType ===
+          "pod" &&
         podStatusUpdated
       ) {
         setSuccess(
           "POD uploaded successfully. Load status automatically updated to POD Received."
         );
       } else if (
-        documentType === "pod" &&
+        documentType ===
+          "pod" &&
         load.status !==
           "delivered"
       ) {
@@ -635,7 +732,8 @@ export default function DriverLoadPage() {
           "POD uploaded successfully."
         );
       } else if (
-        documentType === "bol"
+        documentType ===
+        "bol"
       ) {
         setSuccess(
           "BOL uploaded successfully."
@@ -643,10 +741,12 @@ export default function DriverLoadPage() {
       }
 
       // ========================================================
-      // 5. RESET FILE INPUT
+      // 5. RESET FILE
       // ========================================================
 
-      setSelectedFile(null);
+      setSelectedFile(
+        null
+      );
 
       const input =
         document.getElementById(
@@ -658,12 +758,12 @@ export default function DriverLoadPage() {
       }
 
       // ========================================================
-      // 6. REFRESH DOCUMENTS + LOAD STATUS
+      // 6. REFRESH
       // ========================================================
 
       await loadDocuments();
       await loadAssignedLoad();
-    } catch (err: unknown) {
+    } catch (err) {
       console.error(
         "Document upload error:",
         err
@@ -680,7 +780,7 @@ export default function DriverLoadPage() {
   }
 
   // ============================================================
-  // DOCUMENT VIEW
+  // VIEW DOCUMENT
   // ============================================================
 
   async function viewDocument(
@@ -694,21 +794,24 @@ export default function DriverLoadPage() {
       setError(
         "This document does not have a stored file."
       );
+
       return;
     }
 
     try {
       const {
         data,
-        error: urlError,
-      } = await supabase.storage
-        .from(
-          "fleet-documents"
-        )
-        .createSignedUrl(
-          documentRow.file_path,
-          60
-        );
+        error:
+          urlError,
+      } =
+        await supabase.storage
+          .from(
+            "fleet-documents"
+          )
+          .createSignedUrl(
+            documentRow.file_path,
+            60
+          );
 
       if (urlError) {
         throw new Error(
@@ -716,7 +819,9 @@ export default function DriverLoadPage() {
         );
       }
 
-      if (!data?.signedUrl) {
+      if (
+        !data?.signedUrl
+      ) {
         throw new Error(
           "Unable to generate document link."
         );
@@ -727,7 +832,7 @@ export default function DriverLoadPage() {
         "_blank",
         "noopener,noreferrer"
       );
-    } catch (err: unknown) {
+    } catch (err) {
       setError(
         err instanceof Error
           ? err.message
@@ -762,15 +867,25 @@ export default function DriverLoadPage() {
   }
 
   function locationText(
-    location: string | null,
-    city: string | null,
-    state: string | null
+    location:
+      | string
+      | null,
+
+    city:
+      | string
+      | null,
+
+    state:
+      | string
+      | null
   ) {
     const parts: string[] =
       [];
 
     if (location) {
-      parts.push(location);
+      parts.push(
+        location
+      );
     }
 
     const cityState =
@@ -779,7 +894,9 @@ export default function DriverLoadPage() {
         .join(", ");
 
     if (cityState) {
-      parts.push(cityState);
+      parts.push(
+        cityState
+      );
     }
 
     return parts.length
@@ -795,10 +912,15 @@ export default function DriverLoadPage() {
     }
 
     return status
-      .replaceAll("_", " ")
+      .replaceAll(
+        "_",
+        " "
+      )
       .replace(
         /\b\w/g,
-        (character) =>
+        (
+          character
+        ) =>
           character.toUpperCase()
       );
   }
@@ -816,7 +938,8 @@ export default function DriverLoadPage() {
           </p>
 
           <p className="mt-3 text-lg font-semibold">
-            Loading your load...
+            Loading your
+            load...
           </p>
         </div>
       </main>
@@ -829,7 +952,7 @@ export default function DriverLoadPage() {
 
   if (!load) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
+      <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
         <div className="mx-auto max-w-4xl">
           <button
             type="button"
@@ -838,14 +961,16 @@ export default function DriverLoadPage() {
                 "/driver"
               )
             }
-            className="mb-6 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold"
+            className="mb-6 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900"
           >
-            ← Back to My Loads
+            ← Back to My
+            Loads
           </button>
 
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
             <h1 className="text-xl font-bold text-red-700">
-              Load unavailable
+              Load
+              unavailable
             </h1>
 
             <p className="mt-2 text-red-600">
@@ -865,7 +990,9 @@ export default function DriverLoadPage() {
 
   const hasPod =
     documents.some(
-      (documentRow) =>
+      (
+        documentRow
+      ) =>
         documentRow.document_type ===
         "pod"
     );
@@ -875,17 +1002,21 @@ export default function DriverLoadPage() {
   // ============================================================
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      {/* HEADER */}
+
       <header className="bg-slate-950 text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-300">
               FleetOS
             </p>
 
-            <h1 className="mt-1 text-2xl font-bold">
+            <h1 className="mt-1 text-2xl font-bold text-white">
               Load #
-              {load.load_number}
+              {
+                load.load_number
+              }
             </h1>
           </div>
 
@@ -896,7 +1027,7 @@ export default function DriverLoadPage() {
                 "/driver"
               )
             }
-            className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-800"
+            className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
           >
             ← My Loads
           </button>
@@ -904,28 +1035,32 @@ export default function DriverLoadPage() {
       </header>
 
       <div className="mx-auto max-w-6xl space-y-6 px-5 py-8">
+        {/* ERROR */}
+
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 font-medium text-red-700">
             {error}
           </div>
         )}
 
+        {/* SUCCESS */}
+
         {success && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 font-medium text-emerald-800">
             {success}
           </div>
         )}
 
         {/* LOAD HEADER */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm font-medium text-slate-600">
                 Assigned Load
               </p>
 
-              <h2 className="mt-1 text-3xl font-bold">
+              <h2 className="mt-1 text-3xl font-bold text-slate-950">
                 #
                 {
                   load.load_number
@@ -943,14 +1078,18 @@ export default function DriverLoadPage() {
 
         {/* LOAD PROGRESS */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
           <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-950">
               Load Progress
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Update the operational status as you complete each step.
+            <p className="mt-1 text-sm text-slate-600">
+              Update the
+              operational
+              status as you
+              complete each
+              step.
             </p>
           </div>
 
@@ -962,16 +1101,16 @@ export default function DriverLoadPage() {
             />
 
             {statusAction ? (
-              <div className="mt-7 flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-7 flex flex-col gap-4 rounded-2xl bg-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-semibold text-slate-900">
+                  <p className="font-semibold text-slate-950">
                     Next step:{" "}
                     {prettyStatus(
                       statusAction.nextStatus
                     )}
                   </p>
 
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-slate-600">
                     {
                       statusAction.description
                     }
@@ -997,52 +1136,65 @@ export default function DriverLoadPage() {
                 "delivered" &&
               !hasPod ? (
               <div className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <p className="font-semibold text-amber-800">
+                <p className="font-semibold text-amber-900">
                   POD Required
                 </p>
 
-                <p className="mt-1 text-sm text-amber-700">
-                  Delivery is complete.
-                  Upload the signed POD
-                  below to complete the
-                  delivery paperwork.
+                <p className="mt-1 text-sm text-amber-800">
+                  Delivery is
+                  complete.
+                  Upload the
+                  signed POD
+                  below to
+                  complete the
+                  delivery
+                  paperwork.
                 </p>
               </div>
             ) : load.status ===
               "pod_received" ? (
               <div className="mt-7 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                <p className="font-semibold text-emerald-800">
+                <p className="font-semibold text-emerald-900">
                   POD Received
                 </p>
 
-                <p className="mt-1 text-sm text-emerald-700">
-                  Delivery paperwork has
-                  been received. FleetOS
-                  management can now
-                  proceed with invoicing.
+                <p className="mt-1 text-sm text-emerald-800">
+                  Delivery
+                  paperwork has
+                  been received.
+                  FleetOS
+                  management
+                  can now
+                  proceed with
+                  invoicing.
                 </p>
               </div>
             ) : load.status ===
               "delivered" ? (
               <div className="mt-7 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                <p className="font-semibold text-emerald-800">
-                  Delivery completed
+                <p className="font-semibold text-emerald-900">
+                  Delivery
+                  completed
                 </p>
 
-                <p className="mt-1 text-sm text-emerald-700">
-                  POD has been uploaded.
+                <p className="mt-1 text-sm text-emerald-800">
+                  POD has been
+                  uploaded.
                 </p>
               </div>
             ) : (
               <div className="mt-7 rounded-2xl bg-slate-100 p-5">
-                <p className="font-semibold text-slate-700">
-                  No driver status action
+                <p className="font-semibold text-slate-800">
+                  No driver
+                  status action
                   is available.
                 </p>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  This load is currently
-                  controlled by FleetOS
+                <p className="mt-1 text-sm text-slate-600">
+                  This load is
+                  currently
+                  controlled by
+                  FleetOS
                   management.
                 </p>
               </div>
@@ -1053,12 +1205,12 @@ export default function DriverLoadPage() {
         {/* PICKUP / DELIVERY */}
 
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
               Pickup
             </p>
 
-            <h3 className="mt-3 text-xl font-bold">
+            <h3 className="mt-3 text-xl font-bold text-slate-950">
               {locationText(
                 load.pickup_location,
                 load.pickup_city,
@@ -1066,19 +1218,19 @@ export default function DriverLoadPage() {
               )}
             </h3>
 
-            <p className="mt-3 text-sm text-slate-500">
+            <p className="mt-3 text-sm font-medium text-slate-600">
               {formatDate(
                 load.pickup_date
               )}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
               Delivery
             </p>
 
-            <h3 className="mt-3 text-xl font-bold">
+            <h3 className="mt-3 text-xl font-bold text-slate-950">
               {locationText(
                 load.delivery_location,
                 load.delivery_city,
@@ -1086,7 +1238,7 @@ export default function DriverLoadPage() {
               )}
             </h3>
 
-            <p className="mt-3 text-sm text-slate-500">
+            <p className="mt-3 text-sm font-medium text-slate-600">
               {formatDate(
                 load.delivery_date
               )}
@@ -1096,9 +1248,9 @@ export default function DriverLoadPage() {
 
         {/* LOAD DETAILS */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
           <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-950">
               Load Details
             </h2>
           </div>
@@ -1122,7 +1274,8 @@ export default function DriverLoadPage() {
             <Info
               label="Miles"
               value={
-                load.miles != null
+                load.miles !=
+                null
                   ? Number(
                       load.miles
                     ).toLocaleString()
@@ -1140,12 +1293,14 @@ export default function DriverLoadPage() {
 
           {load.notes && (
             <div className="border-t border-slate-200 px-6 py-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Notes
               </p>
 
-              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                {load.notes}
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                {
+                  load.notes
+                }
               </p>
             </div>
           )}
@@ -1153,15 +1308,17 @@ export default function DriverLoadPage() {
 
         {/* DOCUMENT UPLOAD */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
           <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-xl font-bold">
-              Upload POD / BOL
+            <h2 className="text-xl font-bold text-slate-950">
+              Upload POD /
+              BOL
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Upload paperwork for this
-              load.
+            <p className="mt-1 text-sm text-slate-600">
+              Upload
+              paperwork for
+              this load.
             </p>
           </div>
 
@@ -1172,7 +1329,7 @@ export default function DriverLoadPage() {
             className="grid gap-5 p-6 lg:grid-cols-[200px_1fr_auto] lg:items-end"
           >
             <div>
-              <label className="mb-2 block text-sm font-semibold">
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
                 Document Type
               </label>
 
@@ -1188,7 +1345,7 @@ export default function DriverLoadPage() {
                       .value
                   )
                 }
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900"
               >
                 <option value="pod">
                   POD
@@ -1201,7 +1358,7 @@ export default function DriverLoadPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold">
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
                 File
               </label>
 
@@ -1218,12 +1375,13 @@ export default function DriverLoadPage() {
                       null
                   )
                 }
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900"
               />
 
-              <p className="mt-2 text-xs text-slate-500">
-                PDF, JPG or PNG —
-                maximum 10 MB.
+              <p className="mt-2 text-xs text-slate-600">
+                PDF, JPG or
+                PNG — maximum
+                10 MB.
               </p>
             </div>
 
@@ -1243,33 +1401,36 @@ export default function DriverLoadPage() {
 
         {/* DOCUMENT LIST */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
           <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-950">
               Documents
             </h2>
           </div>
 
           {documents.length ===
           0 ? (
-            <div className="p-10 text-center text-slate-500">
-              No documents uploaded yet.
+            <div className="p-10 text-center text-slate-600">
+              No documents
+              uploaded yet.
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
               {documents.map(
                 (doc) => (
                   <div
-                    key={doc.id}
+                    key={
+                      doc.id
+                    }
                     className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <p className="font-semibold">
+                      <p className="font-semibold text-slate-950">
                         {doc.file_name ||
                           "Load Document"}
                       </p>
 
-                      <p className="mt-1 text-sm uppercase text-slate-500">
+                      <p className="mt-1 text-sm font-medium uppercase text-slate-600">
                         {doc.document_type.replaceAll(
                           "_",
                           " "
@@ -1285,7 +1446,7 @@ export default function DriverLoadPage() {
                             doc
                           )
                         }
-                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100"
+                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"
                       >
                         View
                       </button>
@@ -1301,6 +1462,10 @@ export default function DriverLoadPage() {
   );
 }
 
+// ============================================================
+// INFO
+// ============================================================
+
 function Info({
   label,
   value,
@@ -1310,16 +1475,20 @@ function Info({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
         {label}
       </p>
 
-      <p className="mt-2 font-semibold text-slate-900">
+      <p className="mt-2 font-semibold text-slate-950">
         {value}
       </p>
     </div>
   );
 }
+
+// ============================================================
+// STATUS BADGE
+// ============================================================
 
 function StatusBadge({
   status,
@@ -1327,16 +1496,17 @@ function StatusBadge({
   status: string;
 }) {
   let classes =
-    "bg-slate-100 text-slate-700";
+    "bg-slate-100 text-slate-800";
 
   if (
-    status === "delivered" ||
+    status ===
+      "delivered" ||
     status === "paid" ||
     status ===
       "pod_received"
   ) {
     classes =
-      "bg-emerald-100 text-emerald-700";
+      "bg-emerald-100 text-emerald-800";
   } else if (
     status === "booked" ||
     status ===
@@ -1345,17 +1515,19 @@ function StatusBadge({
       "in_transit"
   ) {
     classes =
-      "bg-blue-100 text-blue-700";
+      "bg-blue-100 text-blue-800";
   } else if (
-    status === "picked_up"
+    status ===
+    "picked_up"
   ) {
     classes =
-      "bg-amber-100 text-amber-700";
+      "bg-amber-100 text-amber-800";
   } else if (
-    status === "cancelled"
+    status ===
+    "cancelled"
   ) {
     classes =
-      "bg-red-100 text-red-700";
+      "bg-red-100 text-red-800";
   }
 
   return (
@@ -1369,6 +1541,10 @@ function StatusBadge({
     </span>
   );
 }
+
+// ============================================================
+// STATUS PROGRESS
+// ============================================================
 
 function StatusProgress({
   currentStatus,
@@ -1392,7 +1568,10 @@ function StatusProgress({
   return (
     <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {stages.map(
-        (stage, index) => {
+        (
+          stage,
+          index
+        ) => {
           const completed =
             currentIndex >=
             index;
@@ -1403,7 +1582,9 @@ function StatusProgress({
 
           return (
             <div
-              key={stage}
+              key={
+                stage
+              }
               className={`rounded-xl border p-4 ${
                 active
                   ? "border-blue-500 bg-blue-50"
@@ -1418,21 +1599,22 @@ function StatusProgress({
                     ? "bg-blue-600 text-white"
                     : completed
                       ? "bg-emerald-600 text-white"
-                      : "bg-slate-200 text-slate-500"
+                      : "bg-slate-200 text-slate-600"
                 }`}
               >
                 {completed
                   ? "✓"
-                  : index + 1}
+                  : index +
+                    1}
               </div>
 
               <p
                 className={`text-sm font-semibold capitalize ${
                   active
-                    ? "text-blue-700"
+                    ? "text-blue-800"
                     : completed
-                      ? "text-emerald-700"
-                      : "text-slate-500"
+                      ? "text-emerald-800"
+                      : "text-slate-600"
                 }`}
               >
                 {stage.replaceAll(
