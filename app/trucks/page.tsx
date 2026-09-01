@@ -128,30 +128,6 @@ export default function TrucksPage() {
     setError("");
 
     try {
-      // get user
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-
-      if (userErr || !user) {
-        throw new Error("Unable to determine authenticated user.");
-      }
-
-      // fetch company_id from profiles
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profileErr) {
-        console.error(profileErr);
-        throw new Error("Could not determine company for user.");
-      }
-
-      const company_id = (profile as any)?.company_id ?? null;
-
       const payload: any = {
         truck_number: truckNumber,
         year: year ? Number(year) : null,
@@ -169,14 +145,20 @@ export default function TrucksPage() {
       };
 
       if (!isEditing) {
-        // insert with company_id
-        const { data: insertData, error: insertErr } = await supabase
-          .from("trucks")
-          .insert([{ ...payload, company_id }]);
+        const response = await fetch("/api/trucks", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
 
-        if (insertErr) {
-          console.error(insertErr);
-          throw new Error(insertErr.message || "Failed to insert truck.");
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.error || "Failed to add truck."
+          );
         }
 
         setSuccessMessage("Truck added.");

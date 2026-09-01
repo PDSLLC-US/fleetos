@@ -1,5 +1,10 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  createClient,
+} from "@/lib/supabase/server";
 
 type CompanyRole =
   | "owner"
@@ -15,15 +20,23 @@ export async function GET() {
       await createClient();
 
     const {
-      data: { user },
-      error: userError,
+      data: {
+        user,
+      },
+
+      error:
+        userError,
     } =
       await supabase.auth.getUser();
 
-    if (userError || !user) {
+    if (
+      userError ||
+      !user
+    ) {
       return NextResponse.json(
         {
-          error: "Unauthorized",
+          error:
+            "Unauthorized",
         },
         {
           status: 401,
@@ -32,18 +45,30 @@ export async function GET() {
     }
 
     const {
-      data: membership,
-      error: membershipError,
-    } = await supabase
-      .from("company_members")
-      .select(`
-        company_id,
-        role,
-        is_active
-      `)
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .maybeSingle();
+      data:
+        membership,
+
+      error:
+        membershipError,
+    } =
+      await supabase
+        .from(
+          "company_members"
+        )
+        .select(`
+          company_id,
+          role,
+          is_active
+        `)
+        .eq(
+          "user_id",
+          user.id
+        )
+        .eq(
+          "is_active",
+          true
+        )
+        .maybeSingle();
 
     if (
       membershipError ||
@@ -68,29 +93,37 @@ export async function GET() {
       role === "admin";
 
     const {
-      data: subscription,
-      error: subscriptionError,
-    } = await supabase
-      .from("company_subscriptions")
-      .select(`
-        plan_name,
-        billing_cycle,
-        subscription_price,
-        status,
-        trial_starts_at,
-        trial_ends_at,
-        current_period_start,
-        current_period_end,
-        next_billing_date,
-        activated_at
-      `)
-      .eq(
-        "company_id",
-        membership.company_id
-      )
-      .maybeSingle();
+      data:
+        subscription,
 
-    if (subscriptionError) {
+      error:
+        subscriptionError,
+    } =
+      await supabase
+        .from(
+          "company_subscriptions"
+        )
+        .select(`
+          plan_name,
+          billing_cycle,
+          subscription_price,
+          status,
+          trial_starts_at,
+          trial_ends_at,
+          current_period_start,
+          current_period_end,
+          next_billing_date,
+          activated_at
+        `)
+        .eq(
+          "company_id",
+          membership.company_id
+        )
+        .maybeSingle();
+
+    if (
+      subscriptionError
+    ) {
       console.error(
         "Company subscription query error:",
         subscriptionError
@@ -117,11 +150,25 @@ export async function GET() {
         subscription: {
           status:
             "unassigned",
+
+          trialStartsAt:
+            null,
+
+          trialEndsAt:
+            null,
         },
       });
     }
 
-    if (!isOwnerOrAdmin) {
+    /*
+     * Every active company member may receive the subscription status
+     * and trial dates because FleetOS uses those values for global
+     * account notices. Staff do NOT receive plan price, billing cycle,
+     * next billing date, or other customer billing details.
+     */
+    if (
+      !isOwnerOrAdmin
+    ) {
       return NextResponse.json({
         role,
 
@@ -131,6 +178,15 @@ export async function GET() {
         subscription: {
           status:
             subscription.status,
+
+          planName:
+            subscription.plan_name,
+
+          trialStartsAt:
+            subscription.trial_starts_at,
+
+          trialEndsAt:
+            subscription.trial_ends_at,
         },
       });
     }
