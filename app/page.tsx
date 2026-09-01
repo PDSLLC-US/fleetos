@@ -194,6 +194,12 @@ const navItems: NavItem[] = [
   },
 
   {
+    label: "Billing",
+    icon: "M4 6h16v12H4z M4 10h16 M8 15h4",
+    roles: OWNER_ADMIN,
+  },
+
+  {
     label: "Settings",
     icon:
       "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.6 4a5.96 5.96 0 0 0-.28-1.46l2.1-1.64-2.5-4.33-2.5 1a6.02 6.02 0 0 0-1.74-1L13.5 2h-5l-.68 2.56a6.02 6.02 0 0 0-1.74 1l-2.5-1-2.5 4.33 2.1 1.64A5.96 5.96 0 0 0 3.4 12a5.96 5.96 0 0 0 .28 1.46l-2.1 1.64 2.5 4.33 2.5-1a6.02 6.02 0 0 0 1.74 1L8.5 22h5l.68-2.56a6.02 6.02 0 0 0 1.74 1l2.5 1 2.5-4.33-2.1-1.64c.18-.46.28-.95.28-1.46z",
@@ -581,6 +587,9 @@ export default function Home() {
 
       case "team":
         return "/team";
+
+      case "billing":
+        return "/billing";
 
       case "settings":
         return "/settings";
