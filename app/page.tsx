@@ -494,6 +494,10 @@ export default function Home() {
     authContext?.role ===
     "dispatcher";
 
+  const isAccountant =
+    authContext?.role ===
+    "accountant";
+
   const canViewFullFinancialDashboard =
     authContext?.role ===
       "owner" ||
@@ -1278,9 +1282,11 @@ export default function Home() {
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                   {isDispatcher
                     ? "Operational performance and pickup-based revenue for your current week and month."
-                    : canViewFullFinancialDashboard
-                      ? "Overview of your fleet operations and financial performance."
-                      : "Overview of your fleet operations and equipment readiness."}
+                    : isAccountant
+                      ? "Financial overview, receivables, expenses, payroll, and profitability."
+                      : canViewFullFinancialDashboard
+                        ? "Overview of your fleet operations and financial performance."
+                        : "Overview of your fleet operations and equipment readiness."}
                 </p>
               </div>
 
@@ -1422,6 +1428,7 @@ export default function Home() {
 
             {/* LOAD OVERVIEW + FLEET STATUS */}
 
+            {!isAccountant ? (
             <div className="mt-8 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
@@ -1638,6 +1645,7 @@ export default function Home() {
                 </div>
               </section>
             </div>
+            ) : null}
 
             {/* RECEIVABLES + PROFITABILITY */}
 
@@ -1949,6 +1957,7 @@ export default function Home() {
 
             {/* RECENT LOADS */}
 
+            {!isAccountant ? (
             <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -2118,9 +2127,11 @@ export default function Home() {
                 </table>
               </div>
             </section>
+            ) : null}
 
             {/* QUICK ACTIONS */}
 
+            {!isAccountant ? (
             <section className="mt-8 rounded-3xl border border-slate-200 bg-slate-950 p-6 text-slate-50 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -2179,6 +2190,7 @@ export default function Home() {
                 )}
               </div>
             </section>
+            ) : null}
 
             <footer className="mt-8 border-t border-slate-200 py-6">
               <FleetOSBrand variant="footer" />

@@ -25,8 +25,33 @@ export async function getAuthRole(
     error: userError,
   } = await supabase.auth.getUser();
 
+  // ============================================================
+  // NO ACTIVE SESSION
+  //
+  // This is NOT a fatal application error.
+  // It simply means the user needs to log in again.
+  // ============================================================
+
   if (userError) {
-    console.error("Unable to get authenticated user:", userError);
+    const errorName =
+      (userError as { name?: string }).name ?? "";
+
+    const errorMessage =
+      userError.message?.toLowerCase() ?? "";
+
+    const sessionMissing =
+      errorName === "AuthSessionMissingError" ||
+      errorMessage.includes("auth session missing");
+
+    if (sessionMissing) {
+      return null;
+    }
+
+    console.error(
+      "Unable to get authenticated user:",
+      userError
+    );
+
     throw userError;
   }
 
@@ -34,18 +59,24 @@ export async function getAuthRole(
     return null;
   }
 
-  const { data: membership, error: membershipError } =
-    await supabase
-      .from("company_members")
-      .select(`
-        company_id,
-        role,
-        driver_id,
-        is_active
-      `)
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .maybeSingle();
+  // ============================================================
+  // ACTIVE COMPANY MEMBERSHIP
+  // ============================================================
+
+  const {
+    data: membership,
+    error: membershipError,
+  } = await supabase
+    .from("company_members")
+    .select(`
+      company_id,
+      role,
+      driver_id,
+      is_active
+    `)
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
 
   if (membershipError) {
     console.error(
@@ -60,21 +91,38 @@ export async function getAuthRole(
     return null;
   }
 
+  // ============================================================
+  // RETURN AUTH / ROLE CONTEXT
+  // ============================================================
+
   return {
     userId: user.id,
-    email: user.email ?? null,
-    companyId: membership.company_id as string,
-    role: membership.role as CompanyRole,
+
+    email:
+      user.email ?? null,
+
+    companyId:
+      membership.company_id as string,
+
+    role:
+      membership.role as CompanyRole,
+
     driverId:
-      (membership.driver_id as string | null) ?? null,
-    isActive: membership.is_active === true,
+      (membership.driver_id as string | null) ??
+      null,
+
+    isActive:
+      membership.is_active === true,
   };
 }
 
 export function isOwnerOrAdmin(
   role: CompanyRole | null | undefined
 ) {
-  return role === "owner" || role === "admin";
+  return (
+    role === "owner" ||
+    role === "admin"
+  );
 }
 
 export function isManagementRole(

@@ -10,32 +10,18 @@ type CompanyRole =
   | "driver";
 
 type BrokerRelation =
-  | {
-      company_name: string | null;
-    }
-  | {
-      company_name: string | null;
-    }[]
+  | { company_name: string | null }
+  | { company_name: string | null }[]
   | null;
 
 type DriverRelation =
-  | {
-      first_name: string | null;
-      last_name: string | null;
-    }
-  | {
-      first_name: string | null;
-      last_name: string | null;
-    }[]
+  | { first_name: string | null; last_name: string | null }
+  | { first_name: string | null; last_name: string | null }[]
   | null;
 
 type TruckRelation =
-  | {
-      truck_number: string | null;
-    }
-  | {
-      truck_number: string | null;
-    }[]
+  | { truck_number: string | null }
+  | { truck_number: string | null }[]
   | null;
 
 type TruckRow = {
@@ -48,24 +34,19 @@ type LoadRow = {
   id: string;
   load_number: string | null;
   truck_id: string | null;
-
   pickup_city: string | null;
   pickup_state: string | null;
   pickup_date: string | null;
-
   delivery_city: string | null;
   delivery_state: string | null;
   delivery_date: string | null;
-
   linehaul: number | string | null;
   detention: number | string | null;
   layover: number | string | null;
   lumper: number | string | null;
   other_charges: number | string | null;
-
   status: string | null;
   created_at: string | null;
-
   brokers: BrokerRelation;
   drivers: DriverRelation;
   trucks: TruckRelation;
@@ -96,14 +77,8 @@ type QueryResult<T> = {
   error: unknown;
 };
 
-// ============================================================
-// GENERAL HELPERS
-// ============================================================
-
 function sleep(ms: number) {
-  return new Promise((resolve) =>
-    setTimeout(resolve, ms)
-  );
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function runWithRetry<T>(
@@ -116,15 +91,9 @@ async function runWithRetry<T>(
     error: new Error(`${label} failed`),
   };
 
-  for (
-    let attempt = 1;
-    attempt <= attempts;
-    attempt += 1
-  ) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const result =
-        await queryFactory();
-
+      const result = await queryFactory();
       lastResult = result;
 
       if (!result.error) {
@@ -156,239 +125,86 @@ async function runWithRetry<T>(
 }
 
 function firstRelation<T>(
-  value:
-    | T
-    | T[]
-    | null
-    | undefined
+  value: T | T[] | null | undefined
 ): T | null {
-  if (!value) {
-    return null;
-  }
-
-  return Array.isArray(value)
-    ? value[0] ?? null
-    : value;
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
 }
 
 function numberValue(
-  value:
-    | number
-    | string
-    | null
-    | undefined
+  value: number | string | null | undefined
 ) {
-  const parsed =
-    Number(value ?? 0);
-
-  return Number.isFinite(parsed)
-    ? parsed
-    : 0;
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function loadRevenue(
-  load: LoadRow
-) {
+function loadRevenue(load: LoadRow) {
   return (
-    numberValue(
-      load.linehaul
-    ) +
-    numberValue(
-      load.detention
-    ) +
-    numberValue(
-      load.layover
-    ) +
-    numberValue(
-      load.lumper
-    ) +
-    numberValue(
-      load.other_charges
-    )
+    numberValue(load.linehaul) +
+    numberValue(load.detention) +
+    numberValue(load.layover) +
+    numberValue(load.lumper) +
+    numberValue(load.other_charges)
   );
 }
 
 function buildPlace(
-  city:
-    | string
-    | null
-    | undefined,
-
-  state:
-    | string
-    | null
-    | undefined
+  city: string | null | undefined,
+  state: string | null | undefined
 ) {
   const c = city ?? "";
   const s = state ?? "";
 
-  if (!c && !s) {
-    return "—";
-  }
-
-  if (c && s) {
-    return `${c}, ${s}`;
-  }
+  if (!c && !s) return "—";
+  if (c && s) return `${c}, ${s}`;
 
   return c || s;
 }
 
-// ============================================================
-// DISPATCHER REVENUE DATE HELPERS
-// ============================================================
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
 
-/*
- * IMPORTANT:
- *
- * Dispatcher revenue is based ONLY on pickup_date.
- *
- * Weekly:
- * Monday through Sunday.
- *
- * Monthly:
- * Current calendar month.
- *
- * We intentionally parse the YYYY-MM-DD portion manually
- * so browser/server timezone conversion does not move a load
- * into the wrong calendar day.
- */
-
-function parseDateOnly(
-  value:
-    | string
-    | null
-    | undefined
-) {
-  if (!value) {
-    return null;
-  }
-
-  const datePart =
-    value.slice(0, 10);
-
-  const [
-    year,
-    month,
-    day,
-  ] = datePart
-    .split("-")
-    .map(Number);
-
-  if (
-    !year ||
-    !month ||
-    !day
-  ) {
-    return null;
-  }
-
-  const date =
-    new Date(
-      year,
-      month - 1,
-      day
-    );
-
-  date.setHours(
-    0,
-    0,
-    0,
-    0
-  );
-
-  return date;
+function endOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(23, 59, 59, 999);
+  return result;
 }
 
 function getDispatcherRevenuePeriods() {
-  const today =
-    new Date();
+  const now = new Date();
+  const today = startOfDay(now);
 
-  today.setHours(
-    0,
-    0,
-    0,
-    0
-  );
-
-  // ----------------------------------------------------------
-  // WEEK:
-  // Monday -> Sunday
-  // ----------------------------------------------------------
-
-  const weekStart =
-    new Date(today);
-
-  const dayOfWeek =
-    today.getDay();
-
-  /*
-   * JavaScript:
-   * Sunday = 0
-   * Monday = 1
-   * Tuesday = 2
-   * ...
-   */
-
+  const day = today.getDay();
   const daysSinceMonday =
-    dayOfWeek === 0
-      ? 6
-      : dayOfWeek - 1;
+    day === 0 ? 6 : day - 1;
 
+  const weekStart = new Date(today);
   weekStart.setDate(
-    today.getDate() -
-      daysSinceMonday
+    weekStart.getDate() - daysSinceMonday
   );
 
-  weekStart.setHours(
-    0,
-    0,
-    0,
-    0
-  );
-
-  const weekEnd =
-    new Date(weekStart);
-
+  const weekEnd = new Date(weekStart);
   weekEnd.setDate(
-    weekStart.getDate() +
-      6
+    weekEnd.getDate() + 6
   );
 
-  weekEnd.setHours(
-    23,
-    59,
-    59,
-    999
-  );
-
-  // ----------------------------------------------------------
-  // MONTH:
-  // First calendar day -> last calendar day
-  // ----------------------------------------------------------
-
-  const monthStart =
-    new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      1
-    );
-
-  monthStart.setHours(
+  const monthStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
     0,
     0,
     0,
     0
   );
 
-  const monthEnd =
-    new Date(
-      today.getFullYear(),
-      today.getMonth() +
-        1,
-      0
-    );
-
-  monthEnd.setHours(
+  const monthEnd = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    0,
     23,
     59,
     59,
@@ -396,111 +212,66 @@ function getDispatcherRevenuePeriods() {
   );
 
   return {
-    weekStart,
-    weekEnd,
+    weekStart: startOfDay(weekStart),
+    weekEnd: endOfDay(weekEnd),
     monthStart,
     monthEnd,
   };
 }
 
 function isDateInRange(
-  value:
-    | string
-    | null
-    | undefined,
-
+  value: string | null | undefined,
   start: Date,
   end: Date
 ) {
-  const date =
-    parseDateOnly(value);
+  if (!value) return false;
 
-  if (!date) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
     return false;
   }
 
-  return (
-    date >= start &&
-    date <= end
-  );
+  return date >= start && date <= end;
 }
 
-function formatDateOnly(
-  date: Date
-) {
-  const year =
-    date.getFullYear();
-
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
-
-  const day =
-    String(
-      date.getDate()
-    ).padStart(2, "0");
+function formatDateOnly(date: Date) {
+  const year = date.getFullYear();
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
 
-// ============================================================
-// DASHBOARD API
-// ============================================================
-
 export async function GET() {
   try {
-    const supabase =
-      await createClient();
-
-    // ==========================================================
-    // AUTHENTICATION
-    // ==========================================================
+    const supabase = await createClient();
 
     const {
       data: { user },
       error: userError,
-    } =
-      await supabase.auth.getUser();
+    } = await supabase.auth.getUser();
 
-    if (
-      userError ||
-      !user
-    ) {
+    if (userError || !user) {
       return NextResponse.json(
-        {
-          error:
-            "Unauthorized",
-        },
-        {
-          status: 401,
-        }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
-
-    // ==========================================================
-    // COMPANY ROLE
-    // ==========================================================
 
     const membershipResult =
       await runWithRetry(
         "membership",
         () =>
           supabase
-            .from(
-              "company_members"
-            )
-            .select(
-              "role,is_active"
-            )
-            .eq(
-              "user_id",
-              user.id
-            )
-            .eq(
-              "is_active",
-              true
-            )
+            .from("company_members")
+            .select("role,is_active")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
             .maybeSingle()
       );
 
@@ -519,16 +290,13 @@ export async function GET() {
       );
     }
 
-    const role =
-      (
-        membershipResult.data as {
-          role: CompanyRole;
-        }
-      ).role;
+    const role = (
+      membershipResult.data as {
+        role: CompanyRole;
+      }
+    ).role;
 
-    if (
-      role === "driver"
-    ) {
+    if (role === "driver") {
       return NextResponse.json(
         {
           error:
@@ -540,73 +308,50 @@ export async function GET() {
       );
     }
 
-    // ==========================================================
-    // ROLE PERMISSIONS
-    // ==========================================================
-
-    const canReadFleet =
+    // These flags control dashboard DATA reads only.
+    // They do not grant route or write access.
+    const canReadFleetData =
       role === "owner" ||
       role === "admin" ||
-      role ===
-        "dispatcher" ||
-      role ===
-        "fleet_manager";
+      role === "dispatcher" ||
+      role === "fleet_manager" ||
+      role === "accountant";
 
-    /*
-     * Full company financials.
-     *
-     * Dispatcher is intentionally NOT included.
-     */
+    const canReadLoadData =
+      role === "owner" ||
+      role === "admin" ||
+      role === "dispatcher" ||
+      role === "fleet_manager" ||
+      role === "accountant";
+
     const canReadFinance =
       role === "owner" ||
       role === "admin" ||
-      role ===
-        "accountant";
-
-    const canReadLoads =
-      role === "owner" ||
-      role === "admin" ||
-      role ===
-        "dispatcher" ||
-      role ===
-        "fleet_manager";
-
-    // ==========================================================
-    // DATABASE QUERIES
-    // ==========================================================
+      role === "accountant";
 
     const trucksPromise =
-      canReadFleet
-        ? runWithRetry<
-            TruckRow[]
-          >(
+      canReadFleetData
+        ? runWithRetry<TruckRow[]>(
             "trucks",
             () =>
               supabase
-                .from(
-                  "trucks"
-                )
+                .from("trucks")
                 .select(
                   "id,truck_number,status"
                 )
           )
         : Promise.resolve({
-            data:
-              [] as TruckRow[],
+            data: [] as TruckRow[],
             error: null,
           });
 
     const loadsPromise =
-      canReadLoads
-        ? runWithRetry<
-            LoadRow[]
-          >(
+      canReadLoadData
+        ? runWithRetry<LoadRow[]>(
             "loads",
             () =>
               supabase
-                .from(
-                  "loads"
-                )
+                .from("loads")
                 .select(`
                   id,
                   load_number,
@@ -638,52 +383,39 @@ export async function GET() {
                 .order(
                   "created_at",
                   {
-                    ascending:
-                      false,
+                    ascending: false,
                   }
                 )
           )
         : Promise.resolve({
-            data:
-              [] as LoadRow[],
+            data: [] as LoadRow[],
             error: null,
           });
 
     const expensesPromise =
       canReadFinance
-        ? runWithRetry<
-            ExpenseRow[]
-          >(
+        ? runWithRetry<ExpenseRow[]>(
             "expenses",
             () =>
               supabase
-                .from(
-                  "expenses"
-                )
+                .from("expenses")
                 .select(
                   "truck_id,amount"
                 )
           )
         : Promise.resolve({
-            data:
-              [] as ExpenseRow[],
+            data: [] as ExpenseRow[],
             error: null,
           });
 
     const settlementsPromise =
       canReadFinance
-        ? runWithRetry<
-            SettlementRow[]
-          >(
+        ? runWithRetry<SettlementRow[]>(
             "settlements",
             () =>
               supabase
-                .from(
-                  "driver_settlements"
-                )
-                .select(
-                  "net_pay"
-                )
+                .from("driver_settlements")
+                .select("net_pay")
                 .in(
                   "status",
                   [
@@ -693,22 +425,17 @@ export async function GET() {
                 )
           )
         : Promise.resolve({
-            data:
-              [] as SettlementRow[],
+            data: [] as SettlementRow[],
             error: null,
           });
 
     const invoicesPromise =
       canReadFinance
-        ? runWithRetry<
-            InvoiceRow[]
-          >(
+        ? runWithRetry<InvoiceRow[]>(
             "invoices",
             () =>
               supabase
-                .from(
-                  "invoices"
-                )
+                .from("invoices")
                 .select(`
                   id,
                   invoice_number,
@@ -728,14 +455,12 @@ export async function GET() {
                 .order(
                   "invoice_date",
                   {
-                    ascending:
-                      false,
+                    ascending: false,
                   }
                 )
           )
         : Promise.resolve({
-            data:
-              [] as InvoiceRow[],
+            data: [] as InvoiceRow[],
             error: null,
           });
 
@@ -745,122 +470,74 @@ export async function GET() {
       expensesResult,
       settlementsResult,
       invoicesResult,
-    ] =
-      await Promise.all([
-        trucksPromise,
-        loadsPromise,
-        expensesPromise,
-        settlementsPromise,
-        invoicesPromise,
-      ]);
+    ] = await Promise.all([
+      trucksPromise,
+      loadsPromise,
+      expensesPromise,
+      settlementsPromise,
+      invoicesPromise,
+    ]);
 
-    // ==========================================================
-    // DEGRADED SOURCE TRACKING
-    // ==========================================================
+    const degradedSources: string[] = [];
 
-    const degradedSources:
-      string[] = [];
-
-    if (
-      trucksResult.error
-    ) {
-      degradedSources.push(
-        "trucks"
-      );
+    if (trucksResult.error) {
+      degradedSources.push("trucks");
     }
 
-    if (
-      loadsResult.error
-    ) {
-      degradedSources.push(
-        "loads"
-      );
+    if (loadsResult.error) {
+      degradedSources.push("loads");
     }
 
-    if (
-      expensesResult.error
-    ) {
-      degradedSources.push(
-        "expenses"
-      );
+    if (expensesResult.error) {
+      degradedSources.push("expenses");
     }
 
-    if (
-      settlementsResult.error
-    ) {
-      degradedSources.push(
-        "settlements"
-      );
+    if (settlementsResult.error) {
+      degradedSources.push("settlements");
     }
 
-    if (
-      invoicesResult.error
-    ) {
-      degradedSources.push(
-        "invoices"
-      );
+    if (invoicesResult.error) {
+      degradedSources.push("invoices");
     }
-
-    /*
-     * Do not crash the whole dashboard because one
-     * non-auth source temporarily failed.
-     */
 
     const trucks =
-      trucksResult.data ??
-      [];
+      trucksResult.data ?? [];
 
     const loads =
-      loadsResult.data ??
-      [];
+      loadsResult.data ?? [];
 
     const expenses =
-      expensesResult.data ??
-      [];
+      expensesResult.data ?? [];
 
     const settlements =
-      settlementsResult.data ??
-      [];
+      settlementsResult.data ?? [];
 
     const invoices =
-      invoicesResult.data ??
-      [];
-
-    // ==========================================================
-    // TRUCK COUNTS
-    // ==========================================================
+      invoicesResult.data ?? [];
 
     const activeTrucks =
       trucks.filter(
         (truck) =>
-          truck.status ===
-          "active"
+          truck.status === "active"
       ).length;
 
     const availableTrucks =
       trucks.filter(
         (truck) =>
-          truck.status ===
-          "available"
+          truck.status === "available"
       ).length;
 
     const maintenanceTrucks =
       trucks.filter(
         (truck) =>
-          truck.status ===
-          "maintenance"
+          truck.status === "maintenance"
       ).length;
 
     const inactiveTrucks =
       trucks.filter(
         (truck) =>
-          truck.status ===
-          "inactive"
+          truck.status === "inactive"
       ).length;
-
-    // ==========================================================
-    // LOAD COUNTS
-    // ==========================================================
 
     const activeLoadStatuses =
       new Set([
@@ -881,9 +558,7 @@ export async function GET() {
     const activeLoads =
       loads.filter(
         (load) =>
-          Boolean(
-            load.status
-          ) &&
+          Boolean(load.status) &&
           activeLoadStatuses.has(
             load.status as string
           )
@@ -892,9 +567,7 @@ export async function GET() {
     const deliveredLoads =
       loads.filter(
         (load) =>
-          Boolean(
-            load.status
-          ) &&
+          Boolean(load.status) &&
           deliveredLoadStatuses.has(
             load.status as string
           )
@@ -903,30 +576,14 @@ export async function GET() {
     const awaitingPod =
       loads.filter(
         (load) =>
-          load.status ===
-          "delivered"
+          load.status === "delivered"
       ).length;
 
     const invoicedLoads =
       loads.filter(
         (load) =>
-          load.status ===
-          "invoiced"
+          load.status === "invoiced"
       ).length;
-
-    // ==========================================================
-    // DISPATCHER REVENUE
-    //
-    // IMPORTANT BUSINESS RULE:
-    //
-    // Revenue is assigned to the period based on PICKUP DATE.
-    //
-    // Weekly = Monday -> Sunday.
-    // Monthly = calendar month.
-    //
-    // Delivery, invoice and payment dates do NOT determine
-    // these Dispatcher revenue KPIs.
-    // ==========================================================
 
     const {
       weekStart,
@@ -948,14 +605,9 @@ export async function GET() {
                 )
             )
             .reduce(
-              (
-                total,
-                load
-              ) =>
+              (total, load) =>
                 total +
-                loadRevenue(
-                  load
-                ),
+                loadRevenue(load),
               0
             )
         : 0;
@@ -972,35 +624,19 @@ export async function GET() {
                 )
             )
             .reduce(
-              (
-                total,
-                load
-              ) =>
+              (total, load) =>
                 total +
-                loadRevenue(
-                  load
-                ),
+                loadRevenue(load),
               0
             )
         : 0;
 
-    // ==========================================================
-    // FULL COMPANY FINANCIALS
-    //
-    // Owner/Admin/Accountant only.
-    // ==========================================================
-
     const totalRevenue =
       canReadFinance
         ? loads.reduce(
-            (
-              total,
-              load
-            ) =>
+            (total, load) =>
               total +
-              loadRevenue(
-                load
-              ),
+              loadRevenue(load),
             0
           )
         : 0;
@@ -1040,16 +676,7 @@ export async function GET() {
       operatingExpenses -
       driverPayroll;
 
-    // ==========================================================
-    // ACCOUNTS RECEIVABLE
-    //
-    // Full finance roles only.
-    // Dispatcher gets zero/empty values from API and the UI
-    // will hide the section entirely.
-    // ==========================================================
-
-    const today =
-      new Date();
+    const today = new Date();
 
     today.setHours(
       0,
@@ -1066,19 +693,11 @@ export async function GET() {
         7
     );
 
-    let outstandingReceivables =
-      0;
+    let outstandingReceivables = 0;
+    let overdueReceivables = 0;
+    let dueThisWeek = 0;
 
-    let overdueReceivables =
-      0;
-
-    let dueThisWeek =
-      0;
-
-    for (
-      const invoice of
-      invoices
-    ) {
+    for (const invoice of invoices) {
       const amount =
         numberValue(
           invoice.amount
@@ -1096,31 +715,24 @@ export async function GET() {
           0
         );
 
-      if (
-        balance <= 0
-      ) {
+      if (balance <= 0) {
         continue;
       }
 
       outstandingReceivables +=
         balance;
 
-      if (
-        invoice.due_date
-      ) {
+      if (invoice.due_date) {
         const dueDate =
           new Date(
             `${invoice.due_date}T00:00:00`
           );
 
-        if (
-          dueDate < today
-        ) {
+        if (dueDate < today) {
           overdueReceivables +=
             balance;
         } else if (
-          dueDate >=
-            today &&
+          dueDate >= today &&
           dueDate <=
             sevenDaysFromNow
         ) {
@@ -1129,10 +741,6 @@ export async function GET() {
         }
       }
     }
-
-    // ==========================================================
-    // RECENT INVOICES
-    // ==========================================================
 
     const recentInvoices =
       invoices
@@ -1175,8 +783,7 @@ export async function GET() {
                 );
 
               if (
-                dueDate <
-                today
+                dueDate < today
               ) {
                 displayStatus =
                   "overdue";
@@ -1214,10 +821,6 @@ export async function GET() {
           }
         );
 
-    // ==========================================================
-    // RECENT LOADS
-    // ==========================================================
-
     const recentLoads =
       loads
         .slice(0, 5)
@@ -1245,8 +848,7 @@ export async function GET() {
                 : "—";
 
             return {
-              id:
-                load.id,
+              id: load.id,
 
               loadNumber:
                 load.load_number ??
@@ -1284,9 +886,7 @@ export async function GET() {
                 null,
 
               revenue:
-                loadRevenue(
-                  load
-                ),
+                loadRevenue(load),
 
               status:
                 load.status ??
@@ -1294,13 +894,6 @@ export async function GET() {
             };
           }
         );
-
-    // ==========================================================
-    // TRUCK PROFITABILITY
-    //
-    // Finance roles only.
-    // Dispatcher does NOT receive this section.
-    // ==========================================================
 
     const truckProfitability =
       canReadFinance
@@ -1310,9 +903,7 @@ export async function GET() {
                 const revenue =
                   loads
                     .filter(
-                      (
-                        load
-                      ) =>
+                      (load) =>
                         load.truck_id ===
                         truck.id
                     )
@@ -1349,14 +940,7 @@ export async function GET() {
                       0
                     );
 
-                /*
-                 * Existing dashboard behavior preserved.
-                 *
-                 * Truck-level driver payroll allocation has
-                 * not been implemented here.
-                 */
-                const payroll =
-                  0;
+                const payroll = 0;
 
                 return {
                   truckId:
@@ -1384,61 +968,31 @@ export async function GET() {
               }
             )
             .sort(
-              (
-                a,
-                b
-              ) =>
+              (a, b) =>
                 b.netProfit -
                 a.netProfit
             )
-            .slice(
-              0,
-              5
-            )
+            .slice(0, 5)
         : [];
-
-    // ==========================================================
-    // RESPONSE
-    // ==========================================================
 
     return NextResponse.json(
       {
-        // ------------------------------------------------------
-        // ROLE
-        // ------------------------------------------------------
-
         role,
-
-        // ------------------------------------------------------
-        // FLEET
-        // ------------------------------------------------------
 
         activeTrucks,
         availableTrucks,
         maintenanceTrucks,
         inactiveTrucks,
 
-        // ------------------------------------------------------
-        // LOADS
-        // ------------------------------------------------------
-
         activeLoads,
         deliveredLoads,
         awaitingPod,
         invoicedLoads,
 
-        // ------------------------------------------------------
-        // OWNER / ADMIN / ACCOUNTANT FINANCIALS
-        // ------------------------------------------------------
-
         totalRevenue,
         driverPayroll,
         operatingExpenses,
         netProfit,
-
-        // ------------------------------------------------------
-        // DISPATCHER REVENUE
-        // ------------------------------------------------------
 
         dispatcherWeeklyRevenue,
         dispatcherMonthlyRevenue,
@@ -1463,25 +1017,13 @@ export async function GET() {
             monthEnd
           ),
 
-        // ------------------------------------------------------
-        // RECEIVABLES
-        // ------------------------------------------------------
-
         outstandingReceivables,
         overdueReceivables,
         dueThisWeek,
 
-        // ------------------------------------------------------
-        // TABLES
-        // ------------------------------------------------------
-
         recentInvoices,
         recentLoads,
         truckProfitability,
-
-        // ------------------------------------------------------
-        // DIAGNOSTICS
-        // ------------------------------------------------------
 
         degraded:
           degradedSources.length >
