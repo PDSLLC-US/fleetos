@@ -33,6 +33,19 @@ type PendingOnboarding = {
   mcNumber: string;
   dotNumber: string;
   companyPhone: string;
+  selectedPlanCode: string;
+};
+
+type SignupPlan = {
+  id: string;
+  plan_code: string;
+  plan_name: string;
+  monthly_price: number;
+  min_trucks: number;
+  max_trucks: number | null;
+  description: string | null;
+  is_featured: boolean;
+  display_order: number;
 };
 
 const PENDING_KEY =
@@ -82,6 +95,26 @@ export default function SignupPage() {
   ] = useState("");
 
   const [
+    plans,
+    setPlans,
+  ] = useState<SignupPlan[]>([]);
+
+  const [
+    plansLoading,
+    setPlansLoading,
+  ] = useState(true);
+
+  const [
+    plansError,
+    setPlansError,
+  ] = useState("");
+
+  const [
+    selectedPlanCode,
+    setSelectedPlanCode,
+  ] = useState("");
+
+  const [
     form,
     setForm,
   ] = useState<SignupForm>({
@@ -99,9 +132,83 @@ export default function SignupPage() {
 
   useEffect(() => {
     void initializeSignup();
+    void loadPlans();
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadPlans() {
+    setPlansLoading(true);
+    setPlansError("");
+
+    try {
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select(`
+          id,
+          plan_code,
+          plan_name,
+          monthly_price,
+          min_trucks,
+          max_trucks,
+          description,
+          is_featured,
+          display_order
+        `)
+        .eq("is_active", true)
+        .order("display_order", {
+          ascending: true,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      const loadedPlans =
+        (data ?? []).map((plan) => ({
+          ...plan,
+          monthly_price: Number(plan.monthly_price ?? 0),
+          min_trucks: Number(plan.min_trucks ?? 0),
+          max_trucks:
+            plan.max_trucks === null
+              ? null
+              : Number(plan.max_trucks),
+          display_order: Number(plan.display_order ?? 0),
+        })) as SignupPlan[];
+
+      setPlans(loadedPlans);
+
+      if (loadedPlans.length > 0) {
+        setSelectedPlanCode((current) => {
+          if (
+            current &&
+            loadedPlans.some(
+              (plan) => plan.plan_code === current
+            )
+          ) {
+            return current;
+          }
+
+          const featured = loadedPlans.find(
+            (plan) => plan.is_featured
+          );
+
+          return (
+            featured?.plan_code ??
+            loadedPlans[0].plan_code
+          );
+        });
+      }
+    } catch (err) {
+      console.error("Unable to load signup plans:", err);
+
+      setPlansError(
+        "Unable to load FleetOS plans. Please refresh and try again."
+      );
+    } finally {
+      setPlansLoading(false);
+    }
+  }
 
   async function initializeSignup() {
     setCheckingSession(true);
@@ -134,6 +241,12 @@ export default function SignupPage() {
           setPendingOnboarding(
             pending
           );
+
+          if (pending?.selectedPlanCode) {
+            setSelectedPlanCode(
+              pending.selectedPlanCode
+            );
+          }
 
           setForm(
             (current) => ({
@@ -306,6 +419,9 @@ export default function SignupPage() {
 
       companyPhone:
         form.companyPhone.trim(),
+
+      selectedPlanCode:
+        selectedPlanCode.trim(),
     };
   }
 
@@ -326,6 +442,10 @@ export default function SignupPage() {
       !form.companyName.trim()
     ) {
       return "Company name is required.";
+    }
+
+    if (!selectedPlanCode.trim()) {
+      return "Please select a FleetOS plan.";
     }
 
     if (
@@ -390,6 +510,9 @@ export default function SignupPage() {
           email_input:
             pending.email ||
             null,
+
+          plan_code_input:
+            pending.selectedPlanCode,
         }
       );
 
@@ -684,7 +807,7 @@ export default function SignupPage() {
                 <p className="mt-3 text-slate-500">
                   {authenticatedWithoutCompany
                     ? "Your account is authenticated. Complete your company information to enter FleetOS."
-                    : "Create the Owner account and company workspace."}
+                    : "Choose your FleetOS plan, create the Owner account, and set up your company workspace."}
                 </p>
               </div>
 
@@ -706,6 +829,108 @@ export default function SignupPage() {
                 }
                 className="mt-8 space-y-8"
               >
+                {/* PLAN SELECTION */}
+
+                <div>
+                  <SectionTitle>
+                    Choose Your FleetOS Plan
+                  </SectionTitle>
+
+                  {plansError ? (
+                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                      {plansError}
+                    </div>
+                  ) : null}
+
+                  {plansLoading ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+                      Loading FleetOS plans...
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid gap-4 md:grid-cols-3">
+                      {plans.map((plan) => {
+                        const selected =
+                          selectedPlanCode ===
+                          plan.plan_code;
+
+                        const truckRange =
+                          plan.max_trucks === null
+                            ? `${plan.min_trucks}+ trucks`
+                            : `${plan.min_trucks}–${plan.max_trucks} trucks`;
+
+                        return (
+                          <button
+                            key={plan.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedPlanCode(
+                                plan.plan_code
+                              )
+                            }
+                            className={`relative rounded-2xl border p-5 text-left transition ${
+                              selected
+                                ? "border-blue-600 bg-blue-50 ring-2 ring-blue-100"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                          >
+                            {plan.is_featured ? (
+                              <span className="absolute right-4 top-4 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
+                                Recommended
+                              </span>
+                            ) : null}
+
+                            <p className="pr-20 text-lg font-bold text-slate-950">
+                              {plan.plan_name}
+                            </p>
+
+                            <p className="mt-4 text-3xl font-bold text-slate-950">
+                              ${plan.monthly_price.toLocaleString()}
+                              <span className="text-sm font-medium text-slate-500">
+                                /month
+                              </span>
+                            </p>
+
+                            <p className="mt-3 text-sm font-semibold text-blue-700">
+                              {truckRange}
+                            </p>
+
+                            <p className="mt-3 text-sm leading-6 text-slate-500">
+                              {plan.description ||
+                                "FleetOS subscription plan."}
+                            </p>
+
+                            <div
+                              className={`mt-5 flex items-center gap-2 text-sm font-semibold ${
+                                selected
+                                  ? "text-blue-700"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              <span
+                                className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                                  selected
+                                    ? "border-blue-600 bg-blue-600 text-white"
+                                    : "border-slate-300 bg-white"
+                                }`}
+                              >
+                                {selected ? "✓" : ""}
+                              </span>
+
+                              {selected
+                                ? "Selected"
+                                : "Select Plan"}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+                    New FleetOS companies begin with a 14-day trial. No payment is collected during this setup step.
+                  </div>
+                </div>
+
                 {/* OWNER */}
 
                 <div>
@@ -947,7 +1172,7 @@ export default function SignupPage() {
                       ? "Creating Account..."
                       : authenticatedWithoutCompany
                         ? "Complete Company Setup"
-                        : "Create FleetOS Account"}
+                        : "Start FleetOS Trial"}
                 </button>
 
                 {!authenticatedWithoutCompany && (

@@ -6,6 +6,14 @@ import {
   useState,
 } from "react";
 
+import {
+  useRouter,
+} from "next/navigation";
+
+import {
+  createClient,
+} from "@/lib/supabase/client";
+
 import FleetOSBrand from "@/components/FleetOSBrand";
 
 type ClientRow = {
@@ -213,6 +221,50 @@ function toDateInput(
 }
 
 export default function PlatformPage() {
+  const router =
+    useRouter();
+
+  const supabase =
+    createClient();
+
+  const [
+    loggingOut,
+    setLoggingOut,
+  ] = useState(false);
+
+  async function handleLogout() {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+
+    try {
+      const {
+        error: signOutError,
+      } =
+        await supabase.auth.signOut();
+
+      if (signOutError) {
+        throw signOutError;
+      }
+
+      router.replace("/login");
+      router.refresh();
+    } catch (err) {
+      console.error(
+        "Platform logout error:",
+        err
+      );
+
+      setLoggingOut(false);
+
+      window.alert(
+        "Unable to log out. Please try again."
+      );
+    }
+  }
+
   const [
     data,
     setData,
@@ -711,15 +763,45 @@ export default function PlatformPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Platform Administrator
-            </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                Platform Administrator
+              </p>
 
-            <p className="mt-1 text-sm font-medium text-white">
-              {data.admin.email ||
-                "FleetOS Admin"}
-            </p>
+              <p className="mt-1 text-sm font-medium text-white">
+                {data.admin.email ||
+                  "FleetOS Admin"}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                void handleLogout()
+              }
+              disabled={loggingOut}
+              className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 8l4 4-4 4M18 12H9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+
+              {loggingOut
+                ? "Logging out..."
+                : "Logout"}
+            </button>
           </div>
         </div>
       </header>
