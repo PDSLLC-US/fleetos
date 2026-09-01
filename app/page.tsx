@@ -14,6 +14,8 @@ import {
   createClient,
 } from "@/lib/supabase/client";
 
+import FleetOSBrand from "@/components/FleetOSBrand";
+
 import {
   getAuthRole,
   roleLabel,
@@ -826,11 +828,11 @@ export default function Home() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <div className="text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-slate-400">
-            FleetOS
-          </p>
+          <div className="flex justify-center">
+            <FleetOSBrand variant="sidebar" />
+          </div>
 
-          <p className="mt-3 text-lg font-semibold">
+          <p className="mt-5 text-lg font-semibold">
             Loading your
             portal...
           </p>
@@ -850,19 +852,15 @@ export default function Home() {
           <div className="space-y-10">
             {/* COMPANY BRAND */}
 
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-800 text-sky-400">
-                <span className="text-lg font-semibold">
-                  F
-                </span>
-              </div>
+            <div className="space-y-4">
+              <FleetOSBrand variant="sidebar" />
 
-              <div className="min-w-0">
-                <p className="text-sm uppercase tracking-[0.25em] text-slate-500">
-                  FleetOS
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-sky-400">
+                  Active Company
                 </p>
 
-                <p className="truncate text-lg font-semibold">
+                <p className="mt-1 truncate text-base font-semibold text-white">
                   {companyName ||
                     "Operations Portal"}
                 </p>
@@ -1040,21 +1038,13 @@ export default function Home() {
 
         <div className="lg:hidden">
           <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 shadow-sm">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-slate-950 text-sky-400">
-                F
-              </div>
+            <div className="min-w-0">
+              <FleetOSBrand variant="header" />
 
-              <div className="min-w-0">
-                <p className="text-sm uppercase tracking-[0.25em] text-slate-500">
-                  FleetOS
-                </p>
-
-                <p className="truncate text-base font-semibold text-slate-900">
-                  {companyName ||
-                    "Dashboard"}
-                </p>
-              </div>
+              <p className="mt-2 max-w-[240px] truncate text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {companyName ||
+                  "Dashboard"}
+              </p>
             </div>
 
             <button
@@ -1085,17 +1075,15 @@ export default function Home() {
             <div className="fixed inset-0 z-40 bg-slate-950/80 px-4 py-5 sm:px-6">
               <div className="h-full overflow-y-auto rounded-3xl bg-slate-950 p-5 text-slate-100 shadow-2xl">
                 <div className="flex items-center justify-between">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-slate-800 text-sky-400">
-                      F
-                    </div>
+                  <div className="min-w-0 space-y-3">
+                    <FleetOSBrand variant="sidebar" />
 
-                    <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                        FleetOS
+                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-sky-400">
+                        Active Company
                       </p>
 
-                      <p className="truncate text-lg font-semibold">
+                      <p className="mt-1 max-w-[220px] truncate text-base font-semibold text-white">
                         {companyName ||
                           "Operations Portal"}
                       </p>
@@ -2191,6 +2179,10 @@ export default function Home() {
                 )}
               </div>
             </section>
+
+            <footer className="mt-8 border-t border-slate-200 py-6">
+              <FleetOSBrand variant="footer" />
+            </footer>
           </div>
         </main>
       </div>
