@@ -848,11 +848,11 @@ export default function Home() {
             DESKTOP SIDEBAR
         ================================================ */}
 
-        <aside className="hidden lg:flex lg:h-screen lg:w-80 lg:flex-col lg:justify-between lg:bg-slate-950 lg:px-6 lg:py-8 lg:text-slate-100">
-          <div className="space-y-10">
+        <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-80 lg:self-start lg:flex-col lg:overflow-hidden lg:bg-slate-950 lg:px-6 lg:py-8 lg:text-slate-100">
+          <div className="flex min-h-0 flex-1 flex-col">
             {/* COMPANY BRAND */}
 
-            <div className="space-y-4">
+            <div className="shrink-0 space-y-4">
               <FleetOSBrand variant="sidebar" />
 
               <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
@@ -869,7 +869,7 @@ export default function Home() {
 
             {/* NAV */}
 
-            <nav className="space-y-1 text-sm leading-6">
+            <nav className="mt-8 min-h-0 flex-1 space-y-1 overflow-y-auto pr-2 pb-4 text-sm leading-6">
               {visibleNavItems.map(
                 (item) => {
                   const route =
@@ -1001,7 +1001,7 @@ export default function Home() {
 
           {/* ACCOUNT CARD */}
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
+          <div className="mt-4 shrink-0 rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
             <p className="truncate text-sm font-semibold text-white">
               {userFullName ||
                 "FleetOS User"}

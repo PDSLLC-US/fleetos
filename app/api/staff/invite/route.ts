@@ -31,6 +31,10 @@ export async function POST(
     const supabase =
       await createClient();
 
+    // ============================================================
+    // VERIFY CURRENT USER
+    // ============================================================
+
     const {
       data: { user },
       error: userError,
@@ -51,6 +55,10 @@ export async function POST(
         }
       );
     }
+
+    // ============================================================
+    // VERIFY OWNER / ADMIN MEMBERSHIP
+    // ============================================================
 
     const {
       data: membership,
@@ -109,6 +117,10 @@ export async function POST(
         }
       );
     }
+
+    // ============================================================
+    // READ REQUEST
+    // ============================================================
 
     const body =
       await request.json();
@@ -170,6 +182,10 @@ export async function POST(
       );
     }
 
+    // ============================================================
+    // SERVER CONFIGURATION
+    // ============================================================
+
     const supabaseUrl =
       process.env
         .NEXT_PUBLIC_SUPABASE_URL;
@@ -197,6 +213,41 @@ export async function POST(
       );
     }
 
+    // ============================================================
+    // FLEETOS INVITATION URL
+    // ============================================================
+
+    /*
+     * Production:
+     * NEXT_PUBLIC_APP_URL=https://portal.platinumllc.co
+     *
+     * Local fallback:
+     * Uses request.nextUrl.origin when NEXT_PUBLIC_APP_URL
+     * has not been configured.
+     */
+
+    const configuredAppUrl =
+      process.env
+        .NEXT_PUBLIC_APP_URL
+        ?.trim()
+        .replace(/\/+$/, "");
+
+    const appUrl =
+      configuredAppUrl ||
+      request.nextUrl.origin;
+
+    const inviteRedirectUrl =
+      `${appUrl}/accept-invite`;
+
+    console.log(
+      "FleetOS staff invitation redirect:",
+      inviteRedirectUrl
+    );
+
+    // ============================================================
+    // ADMIN SUPABASE CLIENT
+    // ============================================================
+
     const admin =
       createAdminClient(
         supabaseUrl,
@@ -212,8 +263,9 @@ export async function POST(
         }
       );
 
-    const origin =
-      request.nextUrl.origin;
+    // ============================================================
+    // SEND INVITATION
+    // ============================================================
 
     const {
       data: inviteData,
@@ -235,7 +287,7 @@ export async function POST(
             },
 
             redirectTo:
-              `${origin}/accept-invite`,
+              inviteRedirectUrl,
           }
         );
 
@@ -275,6 +327,10 @@ export async function POST(
       );
     }
 
+    // ============================================================
+    // VERIFY INVITED USER
+    // ============================================================
+
     const invitedUser =
       inviteData.user;
 
@@ -289,6 +345,10 @@ export async function POST(
         }
       );
     }
+
+    // ============================================================
+    // CREATE COMPANY MEMBERSHIP
+    // ============================================================
 
     const {
       error:
@@ -315,6 +375,12 @@ export async function POST(
         "Staff membership creation error:",
         memberError
       );
+
+      /*
+       * If FleetOS cannot create the company membership,
+       * remove the newly-created Auth user so we do not
+       * leave an orphan account behind.
+       */
 
       const {
         error:
@@ -344,6 +410,10 @@ export async function POST(
       );
     }
 
+    // ============================================================
+    // UPDATE PROFILE NAME
+    // ============================================================
+
     const {
       error:
         profileError,
@@ -365,6 +435,10 @@ export async function POST(
       );
     }
 
+    // ============================================================
+    // SUCCESS
+    // ============================================================
+
     return NextResponse.json(
       {
         success: true,
@@ -379,6 +453,9 @@ export async function POST(
 
           role,
         },
+
+        redirectUrl:
+          inviteRedirectUrl,
       },
       {
         status: 201,
