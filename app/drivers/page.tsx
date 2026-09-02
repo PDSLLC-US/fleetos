@@ -447,38 +447,26 @@ export default function DriversPage() {
       };
 
       if (!isEditing) {
-        const {
-          error:
-            insertError,
-        } =
-          await supabase
-            .from(
-              "drivers"
-            )
-            .insert([
-              {
-                ...payload,
-                company_id:
-                  companyId,
-              },
-            ]);
+        const response = await fetch(
+          "/api/drivers",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }
+        );
 
-        if (
-          insertError
-        ) {
-          console.error(
-            insertError
-          );
+        const result = await response.json();
 
+        if (!response.ok) {
           throw new Error(
-            insertError.message ||
-              "Failed to insert driver."
+            result.error || "Failed to add driver."
           );
         }
 
-        setSuccessMessage(
-          "Driver added."
-        );
+        setSuccessMessage("Driver added.");
       } else {
         const {
           error:
