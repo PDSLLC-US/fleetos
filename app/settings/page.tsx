@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type CompanySettings = {
   id: string;
@@ -70,6 +71,11 @@ export default function SettingsPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   useEffect(() => {
     void loadSettings();
@@ -209,6 +215,39 @@ export default function SettingsPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordSuccess("Password updated successfully.");
+    } catch (err) {
+      console.error("Password update error:", err);
+      setPasswordError(
+        err instanceof Error ? err.message : "Unable to update password."
+      );
+    } finally {
+      setPasswordSaving(false);
     }
   }
 
@@ -477,6 +516,63 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
+        </form>
+
+        <form onSubmit={changePassword} className="mt-6">
+          <Section
+            title="Security"
+            description="Change the password for your own FleetOS account."
+          >
+            <div className="max-w-2xl space-y-5">
+              {passwordError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+                  {passwordError}
+                </div>
+              )}
+
+              {passwordSuccess && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
+                  {passwordSuccess}
+                </div>
+              )}
+
+              <InputField
+                label="New Password"
+                type="password"
+                value={newPassword}
+                disabled={passwordSaving}
+                placeholder="Minimum 8 characters"
+                onChange={(value) => {
+                  setNewPassword(value);
+                  setPasswordError("");
+                  setPasswordSuccess("");
+                }}
+              />
+
+              <InputField
+                label="Confirm New Password"
+                type="password"
+                value={confirmPassword}
+                disabled={passwordSaving}
+                placeholder="Re-enter your new password"
+                onChange={(value) => {
+                  setConfirmPassword(value);
+                  setPasswordError("");
+                  setPasswordSuccess("");
+                }}
+              />
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="rounded-xl bg-slate-950 px-6 py-3 font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {passwordSaving ? "Updating..." : "Update Password"}
+                </button>
+              </div>
+            </div>
+          </Section>
         </form>
       </div>
     </main>

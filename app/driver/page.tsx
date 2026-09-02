@@ -530,20 +530,55 @@ export default function DriverPage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              disabled={
-                loggingOut
-              }
-              onClick={() =>
-                void handleLogout()
-              }
-              className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
-            >
-              {loggingOut
-                ? "Logging out..."
-                : "Logout"}
-            </button>
+            <div className="flex items-center gap-2">
+
+
+              <button
+
+
+                type="button"
+
+
+                onClick={() => router.push("/account")}
+
+
+                className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+
+
+              >
+
+
+                My Account
+
+
+              </button>
+
+
+              <button
+
+
+                type="button"
+
+
+                disabled={loggingOut}
+
+
+                onClick={() => void handleLogout()}
+
+
+                className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+
+
+              >
+
+
+                {loggingOut ? "Logging out..." : "Logout"}
+
+
+              </button>
+
+
+            </div>
           </div>
         </div>
       </div>

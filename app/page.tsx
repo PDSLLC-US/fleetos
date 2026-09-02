@@ -206,6 +206,14 @@ const navItems: NavItem[] = [
 
     roles: OWNER_ADMIN,
   },
+
+  {
+    label: "My Account",
+    icon:
+      "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21a8 8 0 0 1 16 0",
+
+    roles: ALL_MANAGEMENT_ROLES,
+  },
 ];
 
 type TruckProfitability = {
@@ -593,6 +601,9 @@ export default function Home() {
 
       case "settings":
         return "/settings";
+
+      case "my account":
+        return "/account";
 
       default:
         return undefined;
@@ -1029,6 +1040,18 @@ export default function Home() {
             <div className="mt-4">
               <button
                 type="button"
+                onClick={() =>
+                  navigate(
+                    "/account"
+                  )
+                }
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                My Account
+              </button>
+
+              <button
+                type="button"
                 onClick={
                   handleLogout
                 }
@@ -1249,6 +1272,18 @@ export default function Home() {
                   <div className="mt-4">
                     <button
                       type="button"
+                      onClick={() =>
+                        navigate(
+                          "/account"
+                        )
+                      }
+                      className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      My Account
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={
                         handleLogout
                       }
@@ -1344,6 +1379,11 @@ export default function Home() {
 
                 <button
                   type="button"
+                  onClick={() =>
+                    navigate(
+                      "/account"
+                    )
+                  }
                   className="inline-flex items-center gap-3 rounded-2xl bg-slate-950 px-4 py-2 text-white shadow-sm transition hover:bg-slate-800"
                 >
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-sky-400">

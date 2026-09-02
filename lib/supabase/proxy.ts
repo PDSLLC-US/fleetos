@@ -642,6 +642,14 @@ export async function updateSession(
   const role =
     activeMembership.role;
 
+  // Every authenticated company member may manage their own account.
+  if (
+    pathname === "/account" ||
+    pathname.startsWith("/account/")
+  ) {
+    return response;
+  }
+
   // ============================================================
   // BLOCK CLIENT USERS FROM PLATINUM PLATFORM
   // ============================================================
