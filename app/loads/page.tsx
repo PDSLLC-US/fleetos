@@ -36,11 +36,6 @@ type TrailerOption = {
   status?: string | null;
 };
 
-type BrokerOption = {
-  id: string;
-  company_name: string;
-};
-
 type Load = {
   id: string;
   company_id?: string;
@@ -48,6 +43,7 @@ type Load = {
   load_number: string;
 
   broker_id?: string | null;
+  broker_name?: string | null;
   driver_id?: string | null;
   truck_id?: string | null;
   trailer_id?: string | null;
@@ -157,9 +153,9 @@ export default function LoadsPage() {
   );
 
   const [
-    brokers,
-    setBrokers,
-  ] = useState<BrokerOption[]>([]);
+    brokerName,
+    setBrokerName,
+  ] = useState("");
 
   const [
     loading,
@@ -429,7 +425,6 @@ export default function LoadsPage() {
         driverResult,
         truckResult,
         trailerResult,
-        brokerResult,
       ] = await Promise.all([
         supabase
           .from("loads")
@@ -499,18 +494,6 @@ export default function LoadsPage() {
             }
           ),
 
-        supabase
-          .from("brokers")
-          .select(`
-            id,
-            company_name
-          `)
-          .order(
-            "company_name",
-            {
-              ascending: true,
-            }
-          ),
       ]);
 
       if (loadResult.error) {
@@ -556,14 +539,6 @@ export default function LoadsPage() {
         );
       }
 
-      if (
-        !brokerResult.error
-      ) {
-        setBrokers(
-          (brokerResult.data ??
-            []) as BrokerOption[]
-        );
-      }
     } catch (err) {
       console.error(
         "Load board error:",
@@ -586,7 +561,7 @@ export default function LoadsPage() {
 
   function resetForm() {
     setLoadNumber("");
-    setBrokerId("");
+    setBrokerName("");
     setDriverId("");
     setTruckId("");
     setTrailerId("");
@@ -666,7 +641,10 @@ export default function LoadsPage() {
           loadNumber.trim(),
 
         broker_id:
-          brokerId || null,
+          null,
+
+        broker_name:
+          brokerName.trim() || null,
 
         driver_id:
           driverId || null,
@@ -877,8 +855,10 @@ export default function LoadsPage() {
       load.load_number ?? ""
     );
 
-    setBrokerId(
-      load.broker_id ?? ""
+    setBrokerName(
+      load.broker_name ??
+        load.brokers?.company_name ??
+        ""
     );
 
     setDriverId(
@@ -1134,6 +1114,7 @@ export default function LoadsPage() {
                 query
               ) ||
             (
+              load.broker_name ??
               load.brokers
                 ?.company_name ??
               ""
@@ -1533,43 +1514,16 @@ export default function LoadsPage() {
                 </Field>
 
                 <Field>
-                  <select
-                    value={
-                      brokerId
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setBrokerId(
-                        event.target
-                          .value
+                  <input
+                    value={brokerName}
+                    onChange={(event) =>
+                      setBrokerName(
+                        event.target.value
                       )
                     }
-                    className={
-                      inputClass
-                    }
-                  >
-                    <option value="">
-                      Select Broker
-                    </option>
-
-                    {brokers.map(
-                      (broker) => (
-                        <option
-                          key={
-                            broker.id
-                          }
-                          value={
-                            broker.id
-                          }
-                        >
-                          {
-                            broker.company_name
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
+                    placeholder="Broker Name"
+                    className={inputClass}
+                  />
                 </Field>
 
                 <Field>
@@ -2214,9 +2168,9 @@ export default function LoadsPage() {
                           </td>
 
                           <td className="px-5 py-4">
-                            {load
-                              .brokers
-                              ?.company_name ||
+                            {load.broker_name ||
+                              load.brokers
+                                ?.company_name ||
                               "—"}
                           </td>
 
