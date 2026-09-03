@@ -653,7 +653,7 @@ export default function SignupPage() {
             },
 
             emailRedirectTo:
-              `${window.location.origin}/signup`,
+              `${window.location.origin}/auth/confirm?next=/signup`,
           },
         });
 
