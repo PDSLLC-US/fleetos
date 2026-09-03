@@ -316,13 +316,276 @@ export async function POST(
           .toLowerCase()
           .includes("already")
       ) {
+        // ------------------------------------------------------
+        // RE-INVITE EXISTING AUTH USER
+        //
+        // Supabase will not create/invite the same Auth user
+        // twice. This is the normal path when the original
+        // driver invitation expired before activation.
+        // ------------------------------------------------------
+
+        const {
+          data: usersData,
+          error: usersError,
+        } =
+          await admin.auth.admin
+            .listUsers({
+              page: 1,
+              perPage: 1000,
+            });
+
+        if (usersError) {
+          console.error(
+            "Existing driver Auth lookup error:",
+            usersError
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                "The driver account already exists, but FleetOS could not prepare a new invitation.",
+            },
+            {
+              status: 500,
+            }
+          );
+        }
+
+        const existingUser =
+          usersData.users.find(
+            (candidate) =>
+              candidate.email
+                ?.trim()
+                .toLowerCase() ===
+              email
+          );
+
+        if (!existingUser) {
+          return NextResponse.json(
+            {
+              error:
+                "The driver account already exists, but FleetOS could not locate it.",
+            },
+            {
+              status: 409,
+            }
+          );
+        }
+
+        // Verify that an active membership for this Auth user
+        // does not belong to another FleetOS company/role.
+        const {
+          data: existingMemberships,
+          error: existingMembershipError,
+        } =
+          await admin
+            .from("company_members")
+            .select(`
+              company_id,
+              role,
+              driver_id,
+              is_active
+            `)
+            .eq(
+              "user_id",
+              existingUser.id
+            )
+            .eq(
+              "is_active",
+              true
+            );
+
+        if (existingMembershipError) {
+          console.error(
+            "Existing driver membership lookup error:",
+            existingMembershipError
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                "Unable to verify the existing driver account.",
+            },
+            {
+              status: 500,
+            }
+          );
+        }
+
+        const conflictingMembership =
+          (existingMemberships ?? [])
+            .find(
+              (member) =>
+                member.company_id !==
+                  membership.company_id ||
+                member.role !==
+                  "driver" ||
+                (
+                  member.driver_id &&
+                  member.driver_id !==
+                    driver.id
+                )
+            );
+
+        if (conflictingMembership) {
+          return NextResponse.json(
+            {
+              error:
+                "An active FleetOS account with this email already belongs to another company or role.",
+            },
+            {
+              status: 409,
+            }
+          );
+        }
+
+        // Reconnect/repair the intended company membership.
+        const {
+          error: memberError,
+        } =
+          await supabase.rpc(
+            "manage_company_member",
+            {
+              target_user_id:
+                existingUser.id,
+
+              target_role:
+                "driver",
+
+              target_driver_id:
+                driver.id,
+
+              target_is_active:
+                true,
+            }
+          );
+
+        if (memberError) {
+          console.error(
+            "Driver re-invite membership error:",
+            memberError
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                memberError.message ||
+                "Unable to reconnect the driver account.",
+            },
+            {
+              status: 400,
+            }
+          );
+        }
+
+        // Keep the Auth metadata current.
+        const {
+          error: metadataError,
+        } =
+          await admin.auth.admin
+            .updateUserById(
+              existingUser.id,
+              {
+                user_metadata: {
+                  full_name:
+                    fullName,
+
+                  invited_role:
+                    "driver",
+
+                  invited_company_id:
+                    membership.company_id,
+
+                  invited_driver_id:
+                    driver.id,
+                },
+              }
+            );
+
+        if (metadataError) {
+          console.error(
+            "Driver re-invite metadata update error:",
+            metadataError
+          );
+        }
+
+        const {
+          error: profileError,
+        } =
+          await admin
+            .from("profiles")
+            .update({
+              full_name:
+                fullName,
+            })
+            .eq(
+              "id",
+              existingUser.id
+            );
+
+        if (profileError) {
+          console.error(
+            "Driver re-invite profile update error:",
+            profileError
+          );
+        }
+
+        // Send a fresh Supabase recovery link. Recovery links
+        // establish a valid authenticated session and redirect
+        // to the same FleetOS activation page, where the driver
+        // creates/replaces their password.
+        const {
+          error: recoveryError,
+        } =
+          await admin.auth
+            .resetPasswordForEmail(
+              email,
+              {
+                redirectTo:
+                  `${origin}/accept-invite`,
+              }
+            );
+
+        if (recoveryError) {
+          console.error(
+            "Driver re-invite recovery error:",
+            recoveryError
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                recoveryError.message ||
+                "Unable to resend the driver invitation.",
+            },
+            {
+              status: 400,
+            }
+          );
+        }
+
         return NextResponse.json(
           {
-            error:
-              "An account with this driver's email already exists.",
+            success: true,
+            resent: true,
+
+            driver: {
+              id:
+                driver.id,
+
+              userId:
+                existingUser.id,
+
+              email,
+
+              fullName,
+
+              role:
+                "driver",
+            },
           },
           {
-            status: 409,
+            status: 200,
           }
         );
       }
