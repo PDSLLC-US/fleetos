@@ -10,9 +10,12 @@ type LoadOption = {
   detention?: number | null;
   layover?: number | null;
   lumper?: number | null;
+  tolls?: number | null;
   other_charges?: number | null;
   status?: string | null;
   driver_id?: string | null;
+  broker_id?: string | null;
+  broker_name?: string | null;
 };
 
 type DriverOption = {
@@ -112,6 +115,7 @@ export default function InvoicesPage() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [loadId, setLoadId] = useState("");
   const [brokerId, setBrokerId] = useState("");
+  const [brokerName, setBrokerName] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(todayLocalDate());
   const [dueDate, setDueDate] = useState("");
   const [amount, setAmount] = useState<string>("");
@@ -160,9 +164,12 @@ export default function InvoicesPage() {
             detention,
             layover,
             lumper,
+            tolls,
             other_charges,
             status,
-            driver_id
+            driver_id,
+            broker_id,
+            broker_name
           `)
           .order("created_at", { ascending: false }),
 
@@ -321,6 +328,7 @@ export default function InvoicesPage() {
       Number(load.detention || 0) +
       Number(load.layover || 0) +
       Number(load.lumper || 0) +
+      Number(load.tolls || 0) +
       Number(load.other_charges || 0)
     );
   }
@@ -375,6 +383,7 @@ export default function InvoicesPage() {
       setInvoiceNumber("");
       setLoadId("");
       setBrokerId("");
+      setBrokerName("");
       setInvoiceDate(todayLocalDate());
       setDueDate("");
       setAmount("");
@@ -390,6 +399,9 @@ export default function InvoicesPage() {
     setInvoiceNumber(edit.invoice_number);
     setLoadId(edit.load_id || "");
     setBrokerId(edit.broker_id || "");
+    setBrokerName(
+      edit.brokers?.company_name || ""
+    );
 
     setInvoiceDate(
       edit.invoice_date
@@ -556,21 +568,32 @@ export default function InvoicesPage() {
 
         setSuccess("Invoice updated");
       } else {
-        const result = await supabase
-          .from("invoices")
-          .insert({
-            ...payload,
-            company_id: companyId,
-            paid_amount: 0,
-          })
-          .select();
+        const response = await fetch(
+          "/api/invoices",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify(
+              payload
+            ),
+          }
+        );
 
-        if (result.error) {
-          throw result.error;
+        const result =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.error ||
+              "Unable to create invoice."
+          );
         }
 
         setSuccess(
-          "Invoice created. Linked load moved into the invoiced workflow."
+          "Invoice created with a billing snapshot. Linked load moved into the invoiced workflow."
         );
       }
 
@@ -802,6 +825,27 @@ export default function InvoicesPage() {
           : String(err)
       );
     }
+  }
+
+  function downloadInvoicePdf(
+    invoice: Invoice
+  ) {
+    const url =
+      `/api/invoices/${invoice.id}/pdf`;
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+    link.download =
+      `${invoice.invoice_number}.pdf`;
+
+    document.body.appendChild(
+      link
+    );
+
+    link.click();
+    link.remove();
   }
 
   async function viewDetails(
@@ -1128,6 +1172,20 @@ export default function InvoicesPage() {
                                 </button>
                               )}
 
+                            {invoice.status !== "cancelled" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  downloadInvoicePdf(
+                                    invoice
+                                  )
+                                }
+                                className="rounded-2xl bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700"
+                              >
+                                Download PDF
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() =>
@@ -1193,6 +1251,26 @@ export default function InvoicesPage() {
                     setLoadId(nextLoadId);
 
                     if (!editing) {
+                      const selectedLoad =
+                        loads.find(
+                          (load) =>
+                            load.id === nextLoadId
+                        );
+
+                      setBrokerId(
+                        selectedLoad?.broker_id || ""
+                      );
+
+                      setBrokerName(
+                        selectedLoad?.broker_name ||
+                          brokers.find(
+                            (broker) =>
+                              broker.id ===
+                              selectedLoad?.broker_id
+                          )?.company_name ||
+                          ""
+                      );
+
                       const suggested =
                         suggestedAmountForLoad(nextLoadId);
 
@@ -1225,24 +1303,21 @@ export default function InvoicesPage() {
               </Field>
 
               <Field label="Broker">
-                <select
-                  value={brokerId}
-                  onChange={(event) =>
-                    setBrokerId(event.target.value)
+                <input
+                  type="text"
+                  value={brokerName}
+                  readOnly
+                  placeholder={
+                    loadId
+                      ? "No broker name saved on this load"
+                      : "Select a load first"
                   }
-                  className="form-input"
-                >
-                  <option value="">None</option>
+                  className="form-input bg-slate-50"
+                />
 
-                  {brokers.map((broker) => (
-                    <option
-                      key={broker.id}
-                      value={broker.id}
-                    >
-                      {broker.company_name}
-                    </option>
-                  ))}
-                </select>
+                <p className="mt-2 text-xs text-slate-500">
+                  Broker is taken automatically from the selected load.
+                </p>
               </Field>
 
               <Field label="Invoice Date *">
@@ -1511,6 +1586,22 @@ export default function InvoicesPage() {
                 Notes: {showDetails.notes || "—"}
               </div>
             </div>
+
+            {showDetails.status !== "cancelled" && (
+              <div className="mb-5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadInvoicePdf(
+                      showDetails
+                    )
+                  }
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Download PDF
+                </button>
+              </div>
+            )}
 
             <div className="mb-4">
               <h4 className="text-sm font-semibold">
