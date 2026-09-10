@@ -16,6 +16,7 @@ type SignupForm = {
   email: string;
   password: string;
   confirmPassword: string;
+
   companyName: string;
   legalName: string;
   mcNumber: string;
@@ -26,6 +27,7 @@ type SignupForm = {
 type PendingOnboarding = {
   ownerName: string;
   email: string;
+
   companyName: string;
   legalName: string;
   mcNumber: string;
@@ -49,88 +51,8 @@ type SignupPlan = {
 const PENDING_KEY =
   "fleetos_pending_onboarding";
 
-function cleanMetadataValue(
-  value: unknown
-) {
-  return typeof value === "string"
-    ? value.trim()
-    : "";
-}
-
-function pendingFromMetadata(
-  metadata:
-    | Record<string, unknown>
-    | undefined,
-  authenticatedEmail = ""
-): PendingOnboarding | null {
-  if (!metadata) {
-    return null;
-  }
-
-  const ownerName =
-    cleanMetadataValue(
-      metadata.fleetos_owner_name
-    ) ||
-    cleanMetadataValue(
-      metadata.full_name
-    );
-
-  const companyName =
-    cleanMetadataValue(
-      metadata.fleetos_company_name
-    );
-
-  const selectedPlanCode =
-    cleanMetadataValue(
-      metadata.fleetos_plan_code
-    );
-
-  const email =
-    authenticatedEmail
-      .trim()
-      .toLowerCase();
-
-  if (
-    !companyName ||
-    !selectedPlanCode ||
-    !email
-  ) {
-    return null;
-  }
-
-  return {
-    ownerName,
-    email,
-    companyName,
-
-    legalName:
-      cleanMetadataValue(
-        metadata.fleetos_legal_name
-      ),
-
-    mcNumber:
-      cleanMetadataValue(
-        metadata.fleetos_mc_number
-      ),
-
-    dotNumber:
-      cleanMetadataValue(
-        metadata.fleetos_dot_number
-      ),
-
-    companyPhone:
-      cleanMetadataValue(
-        metadata.fleetos_company_phone
-      ),
-
-    selectedPlanCode,
-  };
-}
-
 export default function SignupPage() {
-  const router =
-    useRouter();
-
+  const router = useRouter();
   const supabase =
     createClient();
 
@@ -215,62 +137,14 @@ export default function SignupPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function restorePending(
-    pending: PendingOnboarding
-  ) {
-    setPendingOnboarding(
-      pending
-    );
-
-    if (
-      pending.selectedPlanCode
-    ) {
-      setSelectedPlanCode(
-        pending.selectedPlanCode
-      );
-    }
-
-    setForm(
-      (current) => ({
-        ...current,
-
-        ownerName:
-          pending.ownerName,
-
-        email:
-          pending.email,
-
-        companyName:
-          pending.companyName,
-
-        legalName:
-          pending.legalName,
-
-        mcNumber:
-          pending.mcNumber,
-
-        dotNumber:
-          pending.dotNumber,
-
-        companyPhone:
-          pending.companyPhone,
-      })
-    );
-  }
-
   async function loadPlans() {
     setPlansLoading(true);
     setPlansError("");
 
     try {
-      const {
-        data,
-        error,
-      } =
+      const { data, error } =
         await supabase
-          .from(
-            "subscription_plans"
-          )
+          .from("subscription_plans")
           .select(`
             id,
             plan_code,
@@ -282,61 +156,42 @@ export default function SignupPage() {
             is_featured,
             display_order
           `)
-          .eq(
-            "is_active",
-            true
-          )
-          .order(
-            "display_order",
-            {
-              ascending: true,
-            }
-          );
+          .eq("is_active", true)
+          .order("display_order", {
+            ascending: true,
+          });
 
       if (error) {
         throw error;
       }
 
       const loadedPlans =
-        (data ?? []).map(
-          (plan) => ({
-            ...plan,
+        (data ?? []).map((plan) => ({
+          ...plan,
+          monthly_price:
+            Number(
+              plan.monthly_price ?? 0
+            ),
+          min_trucks:
+            Number(
+              plan.min_trucks ?? 0
+            ),
+          max_trucks:
+            plan.max_trucks === null
+              ? null
+              : Number(
+                  plan.max_trucks
+                ),
+          display_order:
+            Number(
+              plan.display_order ?? 0
+            ),
+        })) as SignupPlan[];
 
-            monthly_price:
-              Number(
-                plan.monthly_price ??
-                  0
-              ),
-
-            min_trucks:
-              Number(
-                plan.min_trucks ??
-                  0
-              ),
-
-            max_trucks:
-              plan.max_trucks ===
-              null
-                ? null
-                : Number(
-                    plan.max_trucks
-                  ),
-
-            display_order:
-              Number(
-                plan.display_order ??
-                  0
-              ),
-          })
-        ) as SignupPlan[];
-
-      setPlans(
-        loadedPlans
-      );
+      setPlans(loadedPlans);
 
       if (
-        loadedPlans.length >
-        0
+        loadedPlans.length > 0
       ) {
         setSelectedPlanCode(
           (current) => {
@@ -375,16 +230,12 @@ export default function SignupPage() {
         "Unable to load FleetOS plans. Please refresh and try again."
       );
     } finally {
-      setPlansLoading(
-        false
-      );
+      setPlansLoading(false);
     }
   }
 
   async function initializeSignup() {
-    setCheckingSession(
-      true
-    );
+    setCheckingSession(true);
 
     try {
       const {
@@ -393,8 +244,8 @@ export default function SignupPage() {
         await supabase.auth.getUser();
 
       /*
-       * First recovery source:
-       * browser localStorage.
+       * Restore information saved before
+       * email verification.
        */
       const saved =
         window.localStorage.getItem(
@@ -407,89 +258,59 @@ export default function SignupPage() {
 
       if (saved) {
         try {
-          const parsed =
-            JSON.parse(
-              saved
-            ) as PendingOnboarding;
+          pending =
+            JSON.parse(saved);
+
+          setPendingOnboarding(
+            pending
+          );
 
           if (
-            parsed &&
-            parsed.email &&
-            parsed.companyName
+            pending?.selectedPlanCode
           ) {
-            pending =
-              parsed;
+            setSelectedPlanCode(
+              pending.selectedPlanCode
+            );
           }
+
+          setForm(
+            (current) => ({
+              ...current,
+
+              ownerName:
+                pending?.ownerName ??
+                "",
+
+              email:
+                pending?.email ??
+                "",
+
+              companyName:
+                pending?.companyName ??
+                "",
+
+              legalName:
+                pending?.legalName ??
+                "",
+
+              mcNumber:
+                pending?.mcNumber ??
+                "",
+
+              dotNumber:
+                pending?.dotNumber ??
+                "",
+
+              companyPhone:
+                pending?.companyPhone ??
+                "",
+            })
+          );
         } catch {
           window.localStorage.removeItem(
             PENDING_KEY
           );
         }
-      }
-
-      /*
-       * Second recovery source:
-       * Supabase Auth metadata.
-       *
-       * This is important when the
-       * verification email opens in
-       * another tab/browser context and
-       * localStorage is unavailable.
-       */
-      if (
-        user &&
-        !pending
-      ) {
-        pending =
-          pendingFromMetadata(
-            user.user_metadata as
-              | Record<
-                  string,
-                  unknown
-                >
-              | undefined,
-            user.email ?? ""
-          );
-      }
-
-      /*
-       * If authenticated, the Auth email
-       * is authoritative.
-       */
-      if (user) {
-        const authEmail =
-          (
-            user.email ?? ""
-          )
-            .trim()
-            .toLowerCase();
-
-        if (pending) {
-          pending = {
-            ...pending,
-
-            email:
-              authEmail ||
-              pending.email,
-          };
-        }
-      }
-
-      if (pending) {
-        restorePending(
-          pending
-        );
-
-        /*
-         * Repopulate localStorage if we
-         * recovered from Auth metadata.
-         */
-        window.localStorage.setItem(
-          PENDING_KEY,
-          JSON.stringify(
-            pending
-          )
-        );
       }
 
       if (!user) {
@@ -501,12 +322,11 @@ export default function SignupPage() {
       }
 
       /*
-       * Check whether Stripe onboarding
-       * has already created membership.
+       * Check whether this authenticated
+       * account already belongs to FleetOS.
        */
       const {
-        data:
-          membership,
+        data: membership,
         error:
           membershipError,
       } =
@@ -527,9 +347,7 @@ export default function SignupPage() {
           )
           .maybeSingle();
 
-      if (
-        membershipError
-      ) {
+      if (membershipError) {
         console.error(
           "Signup membership check:",
           membershipError
@@ -537,6 +355,10 @@ export default function SignupPage() {
       }
 
       if (membership) {
+        /*
+         * Payment webhook has already
+         * completed onboarding.
+         */
         window.localStorage.removeItem(
           PENDING_KEY
         );
@@ -549,57 +371,23 @@ export default function SignupPage() {
             "/driver"
           );
         } else {
-          router.replace(
-            "/"
-          );
+          router.replace("/");
         }
 
         return;
       }
 
       /*
-       * Verified/authenticated user
-       * without company membership.
+       * Authenticated + no company means
+       * the owner can proceed to payment.
        */
       setAuthenticatedWithoutCompany(
         true
       );
 
-      /*
-       * Always put the authenticated
-       * email into the disabled email
-       * field, even if recovery data is
-       * missing.
-       */
-      if (user.email) {
-        setForm(
-          (current) => ({
-            ...current,
-
-            email:
-              user.email
-                ?.trim()
-                .toLowerCase() ??
-              current.email,
-
-            ownerName:
-              current.ownerName ||
-              cleanMetadataValue(
-                user
-                  .user_metadata
-                  ?.full_name
-              ),
-          })
-        );
-      }
-
       if (pending) {
         setSuccess(
-          "Your account is verified. Your company information has been restored. Review your plan and continue to secure payment."
-        );
-      } else {
-        setSuccess(
-          "Your account is verified. Complete your company information below, then continue to secure payment."
+          "Your account is verified. Review your company and plan, then continue to secure payment."
         );
       }
     } catch (err) {
@@ -607,14 +395,8 @@ export default function SignupPage() {
         "Signup initialization error:",
         err
       );
-
-      setError(
-        "Unable to prepare your FleetOS signup. Please refresh and try again."
-      );
     } finally {
-      setCheckingSession(
-        false
-      );
+      setCheckingSession(false);
     }
   }
 
@@ -690,8 +472,7 @@ export default function SignupPage() {
       !authenticatedWithoutCompany
     ) {
       if (
-        form.password.length <
-        8
+        form.password.length < 8
       ) {
         return "Password must be at least 8 characters.";
       }
@@ -707,6 +488,28 @@ export default function SignupPage() {
     return null;
   }
 
+  /*
+   * ========================================================
+   * STRIPE CHECKOUT
+   * ========================================================
+   *
+   * This replaces the old browser-side
+   * complete_company_onboarding() RPC.
+   *
+   * The company is NOT created here.
+   *
+   * /api/stripe/checkout:
+   *   - validates the authenticated user
+   *   - validates the plan
+   *   - stores pending company information
+   *   - creates Stripe Checkout
+   *
+   * Stripe webhook:
+   *   - verifies payment
+   *   - creates the company
+   *   - creates owner membership
+   *   - creates active subscription
+   */
   async function startStripeCheckout(
     pending:
       PendingOnboarding
@@ -716,17 +519,6 @@ export default function SignupPage() {
     setSuccess("");
 
     try {
-      /*
-       * Keep the browser recovery copy
-       * current before leaving FleetOS.
-       */
-      window.localStorage.setItem(
-        PENDING_KEY,
-        JSON.stringify(
-          pending
-        )
-      );
-
       const response =
         await fetch(
           "/api/stripe/checkout",
@@ -780,6 +572,21 @@ export default function SignupPage() {
         );
       }
 
+      /*
+       * Keep local copy until Stripe
+       * onboarding is confirmed.
+       *
+       * The authoritative pending copy
+       * has already been stored on the
+       * server by the Checkout endpoint.
+       */
+      window.localStorage.setItem(
+        PENDING_KEY,
+        JSON.stringify(
+          pending
+        )
+      );
+
       window.location.href =
         result.url;
     } catch (err) {
@@ -794,9 +601,7 @@ export default function SignupPage() {
           : "Unable to start FleetOS payment."
       );
 
-      setCompleting(
-        false
-      );
+      setCompleting(false);
     }
   }
 
@@ -812,9 +617,7 @@ export default function SignupPage() {
     const validationError =
       validateForm();
 
-    if (
-      validationError
-    ) {
+    if (validationError) {
       setError(
         validationError
       );
@@ -826,8 +629,8 @@ export default function SignupPage() {
       buildPendingData();
 
     /*
-     * Already verified:
-     * payment is the next step.
+     * Already verified and authenticated:
+     * proceed directly to secure payment.
      */
     if (
       authenticatedWithoutCompany
@@ -843,8 +646,13 @@ export default function SignupPage() {
 
     try {
       /*
-       * Browser recovery copy.
-       * Password is never stored.
+       * Save company information before
+       * creating the Auth account.
+       *
+       * This allows us to restore the
+       * signup after email verification.
+       *
+       * Password is NEVER stored.
        */
       window.localStorage.setItem(
         PENDING_KEY,
@@ -857,16 +665,6 @@ export default function SignupPage() {
         pending
       );
 
-      /*
-       * We also save NON-SENSITIVE
-       * onboarding information in Auth
-       * metadata.
-       *
-       * This survives email verification
-       * even if localStorage does not.
-       *
-       * Never store the password here.
-       */
       const {
         data,
         error:
@@ -883,27 +681,6 @@ export default function SignupPage() {
             data: {
               full_name:
                 pending.ownerName,
-
-              fleetos_owner_name:
-                pending.ownerName,
-
-              fleetos_company_name:
-                pending.companyName,
-
-              fleetos_legal_name:
-                pending.legalName,
-
-              fleetos_mc_number:
-                pending.mcNumber,
-
-              fleetos_dot_number:
-                pending.dotNumber,
-
-              fleetos_company_phone:
-                pending.companyPhone,
-
-              fleetos_plan_code:
-                pending.selectedPlanCode,
             },
 
             emailRedirectTo:
@@ -911,25 +688,27 @@ export default function SignupPage() {
           },
         });
 
-      if (
-        signupError
-      ) {
+      if (signupError) {
+        window.localStorage.removeItem(
+          PENDING_KEY
+        );
+
         throw new Error(
           signupError.message
         );
       }
 
       /*
-       * If confirmation is disabled,
-       * Supabase can immediately return
-       * an authenticated session.
+       * If email confirmation is disabled,
+       * Supabase may immediately return a
+       * valid authenticated session.
        *
-       * Company creation still waits for
-       * Stripe payment.
+       * Even in that case we DO NOT create
+       * the company directly.
+       *
+       * We proceed to Stripe first.
        */
-      if (
-        data.session
-      ) {
+      if (data.session) {
         await startStripeCheckout(
           pending
         );
@@ -937,8 +716,12 @@ export default function SignupPage() {
         return;
       }
 
+      /*
+       * Normal production flow:
+       * customer must verify email first.
+       */
       setSuccess(
-        "Your account was created. Check your email to verify your address. After verification, FleetOS will restore your company information and continue you to secure payment."
+        "Your account was created. Check your email to verify your address. After verification, return to FleetOS to continue to secure payment."
       );
     } catch (err) {
       console.error(
@@ -946,24 +729,13 @@ export default function SignupPage() {
         err
       );
 
-      /*
-       * Do NOT erase recovery data here.
-       *
-       * A signup response can fail after
-       * the Auth user has already been
-       * created. Keeping the non-secret
-       * onboarding copy makes recovery
-       * safer.
-       */
       setError(
         err instanceof Error
           ? err.message
           : "Unable to create your FleetOS account."
       );
     } finally {
-      setSubmitting(
-        false
-      );
+      setSubmitting(false);
     }
   }
 
@@ -1001,7 +773,9 @@ export default function SignupPage() {
       <div className="mx-auto max-w-6xl">
         <div className="grid overflow-hidden rounded-3xl bg-white shadow-2xl lg:grid-cols-[0.85fr_1.15fr]">
 
+          {/* ============================================= */}
           {/* LEFT PANEL */}
+          {/* ============================================= */}
 
           <section className="bg-slate-900 p-8 text-white sm:p-10 lg:p-12">
             <p className="text-sm font-bold uppercase tracking-[0.35em] text-blue-400">
@@ -1046,7 +820,9 @@ export default function SignupPage() {
             </div>
           </section>
 
+          {/* ============================================= */}
           {/* FORM */}
+          {/* ============================================= */}
 
           <section className="p-6 sm:p-10 lg:p-12">
             <div className="mx-auto max-w-2xl">
@@ -1088,7 +864,8 @@ export default function SignupPage() {
                 }
                 className="mt-8 space-y-8"
               >
-                {/* PLAN */}
+
+                {/* PLAN SELECTION */}
 
                 <div>
                   <SectionTitle>
@@ -1436,7 +1213,7 @@ export default function SignupPage() {
                   </div>
                 </div>
 
-                {/* PAYMENT */}
+                {/* PAYMENT CTA */}
 
                 <button
                   type="submit"

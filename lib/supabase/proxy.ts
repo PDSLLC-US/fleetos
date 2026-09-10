@@ -117,6 +117,18 @@ function isApiPath(
   );
 }
 
+function isPaymentCompletionPath(
+  pathname: string
+) {
+  return (
+    pathname ===
+      "/signup/payment-complete" ||
+    pathname.startsWith(
+      "/signup/payment-complete/"
+    )
+  );
+}
+
 function isManagementRouteAllowed(
   pathname: string,
   role: CompanyRole
@@ -521,7 +533,7 @@ export async function updateSession(
 
     if (
       pathname ===
-      "/accept-invite"
+        "/accept-invite"
     ) {
       return response;
     }
@@ -608,6 +620,11 @@ export async function updateSession(
 
   // ============================================================
   // AUTHENTICATED CUSTOMER WITHOUT COMPANY MEMBERSHIP
+  //
+  // A newly paid customer may not have a membership yet if the
+  // Stripe webhook is still processing or was temporarily missed.
+  // The payment-complete route must remain reachable so the secure
+  // server-side Checkout recovery endpoint can finish onboarding.
   // ============================================================
 
   if (
@@ -627,7 +644,10 @@ export async function updateSession(
       pathname ===
         "/login" ||
       pathname ===
-        "/accept-invite"
+        "/accept-invite" ||
+      isPaymentCompletionPath(
+        pathname
+      )
     ) {
       return response;
     }
@@ -667,7 +687,7 @@ export async function updateSession(
 
     if (
       role ===
-      "driver"
+        "driver"
     ) {
       return createRedirect(
         request,
@@ -753,7 +773,7 @@ export async function updateSession(
 
   const isSubscriptionPage =
     pathname ===
-    "/subscription-required";
+      "/subscription-required";
 
   if (
     !accessDecision.allowed
@@ -812,7 +832,7 @@ export async function updateSession(
 
   if (
     pathname ===
-    "/accept-invite"
+      "/accept-invite"
   ) {
     return response;
   }
@@ -823,7 +843,7 @@ export async function updateSession(
 
   if (
     pathname ===
-    "/signup"
+      "/signup"
   ) {
     if (
       isPlatformAdmin
@@ -837,7 +857,7 @@ export async function updateSession(
 
     if (
       role ===
-      "driver"
+        "driver"
     ) {
       return createRedirect(
         request,
@@ -859,7 +879,7 @@ export async function updateSession(
 
   if (
     pathname ===
-    "/login"
+      "/login"
   ) {
     if (
       isPlatformAdmin
@@ -873,7 +893,7 @@ export async function updateSession(
 
     if (
       role ===
-      "driver"
+        "driver"
     ) {
       return createRedirect(
         request,
@@ -910,7 +930,7 @@ export async function updateSession(
 
   if (
     role ===
-    "driver"
+      "driver"
   ) {
     if (
       !isDriverPortalPath(

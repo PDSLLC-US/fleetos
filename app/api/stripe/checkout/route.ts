@@ -1,0 +1,575 @@
+import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+
+import { createClient } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+
+type CheckoutRequestBody = {
+  planCode?: string;
+
+  ownerName?: string;
+  companyName?: string;
+  legalName?: string;
+  mcNumber?: string;
+  dotNumber?: string;
+  companyPhone?: string;
+};
+
+function clean(value: unknown) {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const stripeSecretKey =
+      process.env.STRIPE_SECRET_KEY;
+
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    const serviceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!stripeSecretKey) {
+      return NextResponse.json(
+        {
+          error:
+            "Stripe is not configured.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (
+      !supabaseUrl ||
+      !serviceRoleKey
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "FleetOS server configuration is incomplete.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const stripe =
+      new Stripe(stripeSecretKey);
+
+    const supabase =
+      await createClient();
+
+    const admin =
+      createAdminClient(
+        supabaseUrl,
+        serviceRoleKey,
+        {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+          },
+        }
+      );
+
+    // ======================================================
+    // 1. Require authenticated verified user
+    // ======================================================
+
+    const {
+      data: { user },
+      error: userError,
+    } =
+      await supabase.auth.getUser();
+
+    if (
+      userError ||
+      !user
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Please verify your email and sign in before continuing to payment.",
+        },
+        { status: 401 }
+      );
+    }
+
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        {
+          error:
+            "Please verify your email before continuing to payment.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (!user.email) {
+      return NextResponse.json(
+        {
+          error:
+            "Your FleetOS account does not have a valid email address.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ======================================================
+    // 2. Prevent existing company members from purchasing
+    //    another company subscription through signup
+    // ======================================================
+
+    const {
+      data: existingMembership,
+      error: membershipError,
+    } =
+      await admin
+        .from("company_members")
+        .select(
+          "company_id, role, is_active"
+        )
+        .eq(
+          "user_id",
+          user.id
+        )
+        .eq(
+          "is_active",
+          true
+        )
+        .maybeSingle();
+
+    if (membershipError) {
+      console.error(
+        "Stripe membership lookup:",
+        membershipError
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "Unable to verify your FleetOS account.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (existingMembership) {
+      return NextResponse.json(
+        {
+          error:
+            "This account already belongs to an active FleetOS company.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // ======================================================
+    // 3. Read signup information
+    // ======================================================
+
+    const body =
+      (await request.json()) as CheckoutRequestBody;
+
+    const planCode =
+      clean(body.planCode);
+
+    const ownerName =
+      clean(body.ownerName);
+
+    const companyName =
+      clean(body.companyName);
+
+    const legalName =
+      clean(body.legalName);
+
+    const mcNumber =
+      clean(body.mcNumber);
+
+    const dotNumber =
+      clean(body.dotNumber);
+
+    const companyPhone =
+      clean(body.companyPhone);
+
+    if (!planCode) {
+      return NextResponse.json(
+        {
+          error:
+            "Please select a FleetOS plan.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!ownerName) {
+      return NextResponse.json(
+        {
+          error:
+            "Owner name is required.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!companyName) {
+      return NextResponse.json(
+        {
+          error:
+            "Company name is required.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ======================================================
+    // 4. Load authoritative plan from FleetOS
+    // ======================================================
+
+    const {
+      data: plan,
+      error: planError,
+    } =
+      await admin
+        .from(
+          "subscription_plans"
+        )
+        .select(
+          `
+            id,
+            plan_code,
+            plan_name,
+            monthly_price,
+            min_trucks,
+            max_trucks,
+            description,
+            is_active
+          `
+        )
+        .eq(
+          "plan_code",
+          planCode
+        )
+        .eq(
+          "is_active",
+          true
+        )
+        .maybeSingle();
+
+    if (planError) {
+      console.error(
+        "Stripe plan lookup:",
+        planError
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "Unable to load the selected FleetOS plan.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!plan) {
+      return NextResponse.json(
+        {
+          error:
+            "The selected FleetOS plan is unavailable.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const monthlyPrice =
+      Number(
+        plan.monthly_price
+      );
+
+    if (
+      !Number.isFinite(
+        monthlyPrice
+      ) ||
+      monthlyPrice <= 0
+    ) {
+      console.error(
+        "Invalid FleetOS subscription price:",
+        plan
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "The selected FleetOS plan has an invalid price.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const unitAmount =
+      Math.round(
+        monthlyPrice * 100
+      );
+
+    // ======================================================
+    // 5. Save pending onboarding server-side
+    // ======================================================
+
+    const {
+      error: pendingError,
+    } =
+      await admin
+        .from(
+          "pending_company_signups"
+        )
+        .upsert(
+          {
+            user_id:
+              user.id,
+
+            owner_name:
+              ownerName,
+
+            email:
+              user.email
+                .trim()
+                .toLowerCase(),
+
+            company_name:
+              companyName,
+
+            legal_name:
+              legalName || null,
+
+            mc_number:
+              mcNumber || null,
+
+            dot_number:
+              dotNumber || null,
+
+            company_phone:
+              companyPhone || null,
+
+            plan_code:
+              plan.plan_code,
+
+            stripe_checkout_session_id:
+              null,
+
+            stripe_customer_id:
+              null,
+
+            stripe_subscription_id:
+              null,
+
+            payment_status:
+              "pending",
+
+            updated_at:
+              new Date().toISOString(),
+          },
+          {
+            onConflict:
+              "user_id",
+          }
+        );
+
+    if (pendingError) {
+      console.error(
+        "Pending FleetOS signup save:",
+        pendingError
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "Unable to prepare your company signup.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // ======================================================
+    // 6. Determine redirect origin
+    // ======================================================
+
+    const requestOrigin =
+      request.nextUrl.origin;
+
+    const configuredOrigin =
+      process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+    const origin =
+      configuredOrigin ||
+      requestOrigin ||
+      "http://localhost:3000";
+
+    // ======================================================
+    // 7. Create Stripe Checkout Session
+    // ======================================================
+
+    const session =
+      await stripe.checkout.sessions.create({
+        mode:
+          "subscription",
+
+        /*
+         * Keep the first FleetOS payment flow
+         * synchronous and predictable.
+         *
+         * Our current onboarding webhook activates
+         * the workspace after a successfully completed
+         * subscription Checkout Session.
+         */
+        payment_method_types: [
+          "card",
+        ],
+
+        customer_email:
+          user.email,
+
+        client_reference_id:
+          user.id,
+
+        line_items: [
+          {
+            quantity: 1,
+
+            price_data: {
+              currency:
+                "usd",
+
+              unit_amount:
+                unitAmount,
+
+              recurring: {
+                interval:
+                  "month",
+              },
+
+              product_data: {
+                name:
+                  `FleetOS ${plan.plan_name}`,
+
+                description:
+                  plan.description ||
+                  `FleetOS ${plan.plan_name} monthly subscription`,
+              },
+            },
+          },
+        ],
+
+        metadata: {
+          fleetos_user_id:
+            user.id,
+
+          fleetos_plan_code:
+            plan.plan_code,
+        },
+
+        subscription_data: {
+          metadata: {
+            fleetos_user_id:
+              user.id,
+
+            fleetos_plan_code:
+              plan.plan_code,
+          },
+        },
+
+        success_url:
+          `${origin}/signup/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+
+        cancel_url:
+          `${origin}/signup?checkout=cancelled`,
+      });
+
+    if (!session.url) {
+      return NextResponse.json(
+        {
+          error:
+            "Stripe did not return a Checkout URL.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // ======================================================
+    // 8. Attach Checkout Session to pending signup
+    // ======================================================
+
+    const {
+      error:
+        sessionSaveError,
+    } =
+      await admin
+        .from(
+          "pending_company_signups"
+        )
+        .update({
+          stripe_checkout_session_id:
+            session.id,
+
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "user_id",
+          user.id
+        );
+
+    if (sessionSaveError) {
+      console.error(
+        "Checkout Session save:",
+        sessionSaveError
+      );
+
+      try {
+        await stripe.checkout.sessions.expire(
+          session.id
+        );
+      } catch (
+        expireError
+      ) {
+        console.error(
+          "Unable to expire orphaned Stripe Checkout Session:",
+          expireError
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error:
+            "Unable to finalize your payment session. Please try again.",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      url:
+        session.url,
+
+      sessionId:
+        session.id,
+    });
+  } catch (error) {
+    console.error(
+      "FleetOS Stripe Checkout error:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to start FleetOS Checkout.",
+      },
+      { status: 500 }
+    );
+  }
+}
