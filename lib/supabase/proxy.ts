@@ -772,12 +772,16 @@ export async function updateSession(
         );
 
   const isSubscriptionPage =
-    pathname ===
-      "/subscription-required";
+  pathname ===
+    "/subscription-required";
 
-  if (
-    !accessDecision.allowed
-  ) {
+const isLoginPage =
+  pathname ===
+    "/login";
+
+if (
+  !accessDecision.allowed
+) {
     if (
       isApiPath(
         pathname
@@ -789,17 +793,23 @@ export async function updateSession(
     }
 
     if (
-      !isSubscriptionPage
-    ) {
-      return createRedirect(
-        request,
-        response,
-        "/subscription-required",
-        accessDecision.reason
-      );
-    }
+  isLoginPage
+) {
+  return response;
+}
 
-    return response;
+if (
+  !isSubscriptionPage
+) {
+  return createRedirect(
+    request,
+    response,
+    "/subscription-required",
+    accessDecision.reason
+  );
+}
+
+return response;
   }
 
   /*
