@@ -1,10 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-import { createClient } from "@/lib/supabase/server";
+import Stripe from "stripe";
+
+import {
+  createClient as createAdminClient,
+} from "@supabase/supabase-js";
+
+import {
+  createClient,
+} from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+
+// ============================================================
+// TYPES
+// ============================================================
 
 type CheckoutRequestBody = {
   planCode?: string;
@@ -17,22 +30,80 @@ type CheckoutRequestBody = {
   companyPhone?: string;
 };
 
-function clean(value: unknown) {
-  return typeof value === "string"
+type PendingSignup = {
+  user_id: string;
+  owner_name: string | null;
+  email: string | null;
+  company_name: string | null;
+  legal_name: string | null;
+  mc_number: string | null;
+  dot_number: string | null;
+  company_phone: string | null;
+  plan_code: string | null;
+
+  stripe_checkout_session_id:
+    | string
+    | null;
+
+  stripe_customer_id:
+    | string
+    | null;
+
+  stripe_subscription_id:
+    | string
+    | null;
+
+  payment_status:
+    | string
+    | null;
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function clean(
+  value: unknown
+) {
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
 
-export async function POST(request: NextRequest) {
+function isPaidStatus(
+  value:
+    | string
+    | null
+    | undefined
+) {
+  return (
+    value === "paid" ||
+    value ===
+      "no_payment_required"
+  );
+}
+
+// ============================================================
+// POST
+// ============================================================
+
+export async function POST(
+  request:
+    NextRequest
+) {
   try {
     const stripeSecretKey =
-      process.env.STRIPE_SECRET_KEY;
+      process.env
+        .STRIPE_SECRET_KEY;
 
     const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL;
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL;
 
     const serviceRoleKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY;
+      process.env
+        .SUPABASE_SERVICE_ROLE_KEY;
 
     if (!stripeSecretKey) {
       return NextResponse.json(
@@ -40,7 +111,9 @@ export async function POST(request: NextRequest) {
           error:
             "Stripe is not configured.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
@@ -53,12 +126,16 @@ export async function POST(request: NextRequest) {
           error:
             "FleetOS server configuration is incomplete.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
     const stripe =
-      new Stripe(stripeSecretKey);
+      new Stripe(
+        stripeSecretKey
+      );
 
     const supabase =
       await createClient();
@@ -69,21 +146,29 @@ export async function POST(request: NextRequest) {
         serviceRoleKey,
         {
           auth: {
-            persistSession: false,
-            autoRefreshToken: false,
+            persistSession:
+              false,
+
+            autoRefreshToken:
+              false,
           },
         }
       );
 
-    // ======================================================
-    // 1. Require authenticated verified user
-    // ======================================================
+    // ========================================================
+    // 1. REQUIRE AUTHENTICATED + VERIFIED USER
+    // ========================================================
 
     const {
-      data: { user },
-      error: userError,
+      data: {
+        user,
+      },
+      error:
+        userError,
     } =
-      await supabase.auth.getUser();
+      await supabase
+        .auth
+        .getUser();
 
     if (
       userError ||
@@ -94,17 +179,23 @@ export async function POST(request: NextRequest) {
           error:
             "Please verify your email and sign in before continuing to payment.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
-    if (!user.email_confirmed_at) {
+    if (
+      !user.email_confirmed_at
+    ) {
       return NextResponse.json(
         {
           error:
             "Please verify your email before continuing to payment.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
@@ -114,21 +205,27 @@ export async function POST(request: NextRequest) {
           error:
             "Your FleetOS account does not have a valid email address.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    // ======================================================
-    // 2. Prevent existing company members from purchasing
-    //    another company subscription through signup
-    // ======================================================
+    // ========================================================
+    // 2. EXISTING ACTIVE COMPANY MEMBERS MAY NOT PURCHASE
+    //    ANOTHER SIGNUP SUBSCRIPTION
+    // ========================================================
 
     const {
-      data: existingMembership,
-      error: membershipError,
+      data:
+        existingMembership,
+      error:
+        membershipError,
     } =
       await admin
-        .from("company_members")
+        .from(
+          "company_members"
+        )
         .select(
           "company_id, role, is_active"
         )
@@ -153,47 +250,68 @@ export async function POST(request: NextRequest) {
           error:
             "Unable to verify your FleetOS account.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
-    if (existingMembership) {
+    if (
+      existingMembership
+    ) {
       return NextResponse.json(
         {
           error:
             "This account already belongs to an active FleetOS company.",
         },
-        { status: 409 }
+        {
+          status: 409,
+        }
       );
     }
 
-    // ======================================================
-    // 3. Read signup information
-    // ======================================================
+    // ========================================================
+    // 3. READ SIGNUP INFORMATION
+    // ========================================================
 
     const body =
-      (await request.json()) as CheckoutRequestBody;
+      (await request.json()) as
+        CheckoutRequestBody;
 
     const planCode =
-      clean(body.planCode);
+      clean(
+        body.planCode
+      );
 
     const ownerName =
-      clean(body.ownerName);
+      clean(
+        body.ownerName
+      );
 
     const companyName =
-      clean(body.companyName);
+      clean(
+        body.companyName
+      );
 
     const legalName =
-      clean(body.legalName);
+      clean(
+        body.legalName
+      );
 
     const mcNumber =
-      clean(body.mcNumber);
+      clean(
+        body.mcNumber
+      );
 
     const dotNumber =
-      clean(body.dotNumber);
+      clean(
+        body.dotNumber
+      );
 
     const companyPhone =
-      clean(body.companyPhone);
+      clean(
+        body.companyPhone
+      );
 
     if (!planCode) {
       return NextResponse.json(
@@ -201,7 +319,9 @@ export async function POST(request: NextRequest) {
           error:
             "Please select a FleetOS plan.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
@@ -211,7 +331,9 @@ export async function POST(request: NextRequest) {
           error:
             "Owner name is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
@@ -221,17 +343,21 @@ export async function POST(request: NextRequest) {
           error:
             "Company name is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    // ======================================================
-    // 4. Load authoritative plan from FleetOS
-    // ======================================================
+    // ========================================================
+    // 4. LOAD AUTHORITATIVE PLAN FROM FLEETOS
+    // ========================================================
 
     const {
-      data: plan,
-      error: planError,
+      data:
+        plan,
+      error:
+        planError,
     } =
       await admin
         .from(
@@ -270,7 +396,9 @@ export async function POST(request: NextRequest) {
           error:
             "Unable to load the selected FleetOS plan.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
@@ -280,7 +408,9 @@ export async function POST(request: NextRequest) {
           error:
             "The selected FleetOS plan is unavailable.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
@@ -305,7 +435,9 @@ export async function POST(request: NextRequest) {
           error:
             "The selected FleetOS plan has an invalid price.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
@@ -314,12 +446,302 @@ export async function POST(request: NextRequest) {
         monthlyPrice * 100
       );
 
-    // ======================================================
-    // 5. Save pending onboarding server-side
-    // ======================================================
+    // ========================================================
+    // 5. LOAD EXISTING PENDING SIGNUP BEFORE CHANGING IT
+    //
+    // This is the critical hardening step.
+    // ========================================================
 
     const {
-      error: pendingError,
+      data:
+        existingPendingRaw,
+      error:
+        existingPendingError,
+    } =
+      await admin
+        .from(
+          "pending_company_signups"
+        )
+        .select(
+          `
+            user_id,
+            owner_name,
+            email,
+            company_name,
+            legal_name,
+            mc_number,
+            dot_number,
+            company_phone,
+            plan_code,
+            stripe_checkout_session_id,
+            stripe_customer_id,
+            stripe_subscription_id,
+            payment_status
+          `
+        )
+        .eq(
+          "user_id",
+          user.id
+        )
+        .maybeSingle();
+
+    if (
+      existingPendingError
+    ) {
+      console.error(
+        "Existing pending signup lookup:",
+        existingPendingError
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "Unable to verify your existing FleetOS signup.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    const existingPending =
+      existingPendingRaw as
+        | PendingSignup
+        | null;
+
+    // ========================================================
+    // 6. NEVER OVERWRITE A SIGNUP ALREADY MARKED PAID
+    // ========================================================
+
+    if (
+      existingPending &&
+      isPaidStatus(
+        existingPending
+          .payment_status
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "This FleetOS signup has already been paid. Please continue to your workspace instead of starting another payment.",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
+    // ========================================================
+    // 7. CHECK EXISTING STRIPE SESSION
+    //
+    // Do not trust only our local payment_status. Stripe is
+    // authoritative if a Checkout Session already exists.
+    // ========================================================
+
+    if (
+      existingPending
+        ?.stripe_checkout_session_id
+    ) {
+      const existingSessionId =
+        existingPending
+          .stripe_checkout_session_id;
+
+      try {
+        const existingSession =
+          await stripe
+            .checkout
+            .sessions
+            .retrieve(
+              existingSessionId
+            );
+
+        const sessionUserId =
+          existingSession
+            .metadata
+            ?.fleetos_user_id ||
+          existingSession
+            .client_reference_id ||
+          "";
+
+        const sessionPlanCode =
+          existingSession
+            .metadata
+            ?.fleetos_plan_code ||
+          "";
+
+        // ----------------------------------------------------
+        // Existing session must belong to this user.
+        // ----------------------------------------------------
+
+        if (
+          sessionUserId !==
+          user.id
+        ) {
+          console.error(
+            "Existing Checkout Session ownership mismatch:",
+            {
+              userId:
+                user.id,
+              sessionId:
+                existingSession.id,
+            }
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                "FleetOS found an existing payment session that could not be verified. Please contact support.",
+            },
+            {
+              status: 409,
+            }
+          );
+        }
+
+        // ----------------------------------------------------
+        // CRITICAL:
+        // Stripe says the existing session is already paid.
+        //
+        // Never replace its ID with another Checkout Session.
+        // Send the browser into the recovery flow instead.
+        // ----------------------------------------------------
+
+        if (
+          isPaidStatus(
+            existingSession
+              .payment_status
+          ) &&
+          existingSession
+            .status ===
+            "complete"
+        ) {
+          return NextResponse.json(
+            {
+              recoveryRequired:
+                true,
+
+              sessionId:
+                existingSession.id,
+
+              recoveryUrl:
+                `/signup/payment-complete?session_id=${encodeURIComponent(
+                  existingSession.id
+                )}`,
+
+              message:
+                "Your previous FleetOS payment was already completed. FleetOS will recover that payment instead of creating another charge.",
+            },
+            {
+              status: 409,
+            }
+          );
+        }
+
+        // ----------------------------------------------------
+        // If an unpaid Checkout Session is still OPEN and it
+        // is for the SAME plan, reuse it.
+        //
+        // This prevents double-clicks / refreshes from creating
+        // unnecessary duplicate Stripe sessions.
+        // ----------------------------------------------------
+
+        if (
+          existingSession
+            .status ===
+            "open" &&
+          !isPaidStatus(
+            existingSession
+              .payment_status
+          ) &&
+          sessionPlanCode ===
+            plan.plan_code &&
+          existingSession.url
+        ) {
+          return NextResponse.json({
+            url:
+              existingSession.url,
+
+            sessionId:
+              existingSession.id,
+
+            reused:
+              true,
+          });
+        }
+
+        // ----------------------------------------------------
+        // If an old unpaid session is still open but the user
+        // changed plans, expire the old session first.
+        // ----------------------------------------------------
+
+        if (
+          existingSession
+            .status ===
+          "open"
+        ) {
+          try {
+            await stripe
+              .checkout
+              .sessions
+              .expire(
+                existingSession.id
+              );
+          } catch (
+            expireError
+          ) {
+            console.error(
+              "Unable to expire previous Stripe Checkout Session:",
+              expireError
+            );
+
+            return NextResponse.json(
+              {
+                error:
+                  "FleetOS could not safely replace your previous payment session. Please try again.",
+              },
+              {
+                status: 500,
+              }
+            );
+          }
+        }
+      } catch (
+        existingSessionError
+      ) {
+        console.error(
+          "Existing Stripe Checkout Session lookup:",
+          existingSessionError
+        );
+
+        /*
+         * Do NOT blindly overwrite the old session reference
+         * when Stripe lookup itself failed.
+         *
+         * That is exactly the type of condition that could
+         * destroy our ability to recover a real payment.
+         */
+        return NextResponse.json(
+          {
+            error:
+              "FleetOS could not verify your previous payment session with Stripe. Please try again.",
+          },
+          {
+            status: 502,
+          }
+        );
+      }
+    }
+
+    // ========================================================
+    // 8. SAVE / UPDATE PENDING ONBOARDING
+    //
+    // We have now established that there is no completed paid
+    // Checkout Session that needs to be preserved.
+    // ========================================================
+
+    const {
+      error:
+        pendingError,
     } =
       await admin
         .from(
@@ -342,16 +764,20 @@ export async function POST(request: NextRequest) {
               companyName,
 
             legal_name:
-              legalName || null,
+              legalName ||
+              null,
 
             mc_number:
-              mcNumber || null,
+              mcNumber ||
+              null,
 
             dot_number:
-              dotNumber || null,
+              dotNumber ||
+              null,
 
             company_phone:
-              companyPhone || null,
+              companyPhone ||
+              null,
 
             plan_code:
               plan.plan_code,
@@ -369,7 +795,8 @@ export async function POST(request: NextRequest) {
               "pending",
 
             updated_at:
-              new Date().toISOString(),
+              new Date()
+                .toISOString(),
           },
           {
             onConflict:
@@ -388,89 +815,82 @@ export async function POST(request: NextRequest) {
           error:
             "Unable to prepare your company signup.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
-    // ======================================================
-    // 6. Determine redirect origin
-    // ======================================================
+    // ========================================================
+    // 9. DETERMINE REDIRECT ORIGIN
+    // ========================================================
 
     const requestOrigin =
       request.nextUrl.origin;
 
     const configuredOrigin =
-      process.env.NEXT_PUBLIC_SITE_URL?.trim();
+      process.env
+        .NEXT_PUBLIC_SITE_URL
+        ?.trim();
 
     const origin =
       configuredOrigin ||
       requestOrigin ||
       "http://localhost:3000";
 
-    // ======================================================
-    // 7. Create Stripe Checkout Session
-    // ======================================================
+    // ========================================================
+    // 10. CREATE NEW STRIPE CHECKOUT SESSION
+    // ========================================================
 
     const session =
-      await stripe.checkout.sessions.create({
-        mode:
-          "subscription",
+      await stripe
+        .checkout
+        .sessions
+        .create({
+  mode:
+    "subscription",
 
-        /*
-         * Keep the first FleetOS payment flow
-         * synchronous and predictable.
-         *
-         * Our current onboarding webhook activates
-         * the workspace after a successfully completed
-         * subscription Checkout Session.
-         */
-        payment_method_types: [
-          "card",
-        ],
+  adaptive_pricing: {
+    enabled: false,
+  },
 
-        customer_email:
-          user.email,
+  payment_method_types: [
+    "card",
+  ],
 
-        client_reference_id:
-          user.id,
-
-        line_items: [
-          {
-            quantity: 1,
-
-            price_data: {
-              currency:
-                "usd",
-
-              unit_amount:
-                unitAmount,
-
-              recurring: {
-                interval:
-                  "month",
-              },
-
-              product_data: {
-                name:
-                  `FleetOS ${plan.plan_name}`,
-
-                description:
-                  plan.description ||
-                  `FleetOS ${plan.plan_name} monthly subscription`,
-              },
-            },
-          },
-        ],
-
-        metadata: {
-          fleetos_user_id:
+  customer_email:
+    user.email,
+          client_reference_id:
             user.id,
 
-          fleetos_plan_code:
-            plan.plan_code,
-        },
+          line_items: [
+            {
+              quantity: 1,
 
-        subscription_data: {
+              price_data: {
+                currency:
+                  "usd",
+
+                unit_amount:
+                  unitAmount,
+
+                recurring: {
+                  interval:
+                    "month",
+                },
+
+                product_data: {
+                  name:
+                    `FleetOS ${plan.plan_name}`,
+
+                  description:
+                    plan.description ||
+                    `FleetOS ${plan.plan_name} monthly subscription`,
+                },
+              },
+            },
+          ],
+
           metadata: {
             fleetos_user_id:
               user.id,
@@ -478,30 +898,68 @@ export async function POST(request: NextRequest) {
             fleetos_plan_code:
               plan.plan_code,
           },
-        },
 
-        success_url:
-          `${origin}/signup/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+          subscription_data: {
+            metadata: {
+              fleetos_user_id:
+                user.id,
 
-        cancel_url:
-          `${origin}/signup?checkout=cancelled`,
-      });
+              fleetos_plan_code:
+                plan.plan_code,
+            },
+          },
+
+          success_url:
+            `${origin}/signup/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+
+          cancel_url:
+            `${origin}/signup?checkout=cancelled`,
+        });
 
     if (!session.url) {
+      /*
+       * There is no usable Checkout URL.
+       * Expire the session if Stripe created one.
+       */
+      try {
+        await stripe
+          .checkout
+          .sessions
+          .expire(
+            session.id
+          );
+      } catch (
+        expireError
+      ) {
+        console.error(
+          "Unable to expire Stripe Checkout Session without URL:",
+          expireError
+        );
+      }
+
       return NextResponse.json(
         {
           error:
             "Stripe did not return a Checkout URL.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
-    // ======================================================
-    // 8. Attach Checkout Session to pending signup
-    // ======================================================
+    // ========================================================
+    // 11. ATTACH NEW SESSION SAFELY
+    //
+    // Only update a row that is STILL pending and has no
+    // Checkout Session attached.
+    //
+    // This adds another guard against concurrent requests.
+    // ========================================================
 
     const {
+      data:
+        sessionSaveResult,
       error:
         sessionSaveError,
     } =
@@ -514,23 +972,48 @@ export async function POST(request: NextRequest) {
             session.id,
 
           updated_at:
-            new Date().toISOString(),
+            new Date()
+              .toISOString(),
         })
         .eq(
           "user_id",
           user.id
-        );
+        )
+        .eq(
+          "payment_status",
+          "pending"
+        )
+        .is(
+          "stripe_checkout_session_id",
+          null
+        )
+        .select(
+          "user_id, stripe_checkout_session_id"
+        )
+        .maybeSingle();
 
-    if (sessionSaveError) {
+    if (
+      sessionSaveError ||
+      !sessionSaveResult
+    ) {
       console.error(
-        "Checkout Session save:",
+        "Checkout Session safe save:",
         sessionSaveError
       );
 
+      /*
+       * Another request may have won the race, or the pending
+       * signup changed while Stripe was creating this session.
+       *
+       * Expire THIS orphaned session so it cannot be paid.
+       */
       try {
-        await stripe.checkout.sessions.expire(
-          session.id
-        );
+        await stripe
+          .checkout
+          .sessions
+          .expire(
+            session.id
+          );
       } catch (
         expireError
       ) {
@@ -543,11 +1026,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Unable to finalize your payment session. Please try again.",
+            "Your FleetOS payment session changed while Checkout was being prepared. Please try again.",
         },
-        { status: 500 }
+        {
+          status: 409,
+        }
       );
     }
+
+    // ========================================================
+    // 12. SUCCESS
+    // ========================================================
 
     return NextResponse.json({
       url:
@@ -555,6 +1044,9 @@ export async function POST(request: NextRequest) {
 
       sessionId:
         session.id,
+
+      reused:
+        false,
     });
   } catch (error) {
     console.error(
@@ -565,11 +1057,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error
+          error instanceof
+          Error
             ? error.message
             : "Unable to start FleetOS Checkout.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
