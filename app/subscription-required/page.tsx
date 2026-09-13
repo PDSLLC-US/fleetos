@@ -2,15 +2,31 @@
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
+import { createClient } from "@/lib/supabase/client";
+
 export default function SubscriptionRequiredPage() {
+  const supabase =
+    useMemo(
+      () => createClient(),
+      []
+    );
+
   const [
     status,
     setStatus,
   ] = useState(
     "inactive"
+  );
+
+  const [
+    signingOut,
+    setSigningOut,
+  ] = useState(
+    false
   );
 
   useEffect(() => {
@@ -66,6 +82,40 @@ export default function SubscriptionRequiredPage() {
 
     message =
       "Your company's FleetOS trial period has expired. Please contact Platinum Digital Services LLC to activate a subscription and continue using FleetOS.";
+  }
+
+  async function handleReturnToSignIn() {
+    if (signingOut) {
+      return;
+    }
+
+    setSigningOut(true);
+
+    try {
+      const {
+        error,
+      } =
+        await supabase.auth.signOut();
+
+      if (error) {
+        console.error(
+          "FleetOS sign out error:",
+          error
+        );
+      }
+    } catch (error) {
+      console.error(
+        "FleetOS sign out failed:",
+        error
+      );
+    } finally {
+      /*
+       * Use a full navigation so middleware receives the
+       * browser after the Supabase session cookies are cleared.
+       */
+      window.location.href =
+        "/login";
+    }
   }
 
   return (
@@ -237,10 +287,12 @@ export default function SubscriptionRequiredPage() {
 
           <button
             type="button"
-            onClick={() => {
-              window.location.href =
-                "/login";
-            }}
+            onClick={() =>
+              void handleReturnToSignIn()
+            }
+            disabled={
+              signingOut
+            }
             style={{
               marginTop:
                 "14px",
@@ -270,10 +322,19 @@ export default function SubscriptionRequiredPage() {
                 700,
 
               cursor:
-                "pointer",
+                signingOut
+                  ? "not-allowed"
+                  : "pointer",
+
+              opacity:
+                signingOut
+                  ? 0.7
+                  : 1,
             }}
           >
-            Return to Sign In
+            {signingOut
+              ? "Signing Out..."
+              : "Return to Sign In"}
           </button>
         </div>
 
