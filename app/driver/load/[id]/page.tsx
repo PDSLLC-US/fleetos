@@ -175,6 +175,14 @@ export default function DriverLoadPage() {
     );
 
   const [
+    capturedFiles,
+    setCapturedFiles,
+  ] =
+    useState<File[]>(
+      []
+    );
+
+  const [
     error,
     setError,
   ] = useState("");
@@ -547,15 +555,18 @@ export default function DriverLoadPage() {
 
       const blob = await response.blob();
 
+      const pageNumber =
+        capturedFiles.length + 1;
+
       const fileName = `${
         documentType === "pod" ? "pod" : "document"
-      }-${Date.now()}.jpg`;
+      }-${Date.now()}-page-${pageNumber}.jpg`;
 
       const file = new File([blob], fileName, {
         type: blob.type || "image/jpeg",
       });
 
-      setSelectedFile(file);
+      setCapturedFiles((prev) => [...prev, file]);
     } catch (err) {
       const message =
         err instanceof Error
@@ -578,6 +589,258 @@ export default function DriverLoadPage() {
       );
     } finally {
       setCameraBusy(false);
+    }
+  }
+
+  async function uploadDocumentFile(
+    file: File,
+    selectedDocumentType: string
+  ) {
+    if (!auth || !load) {
+      throw new Error(
+        "Driver session or load information is unavailable."
+      );
+    }
+
+    const allowedTypes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+    ];
+
+    if (
+      !allowedTypes.includes(file.type)
+    ) {
+      throw new Error(
+        "Only PDF, JPG and PNG files are allowed."
+      );
+    }
+
+    if (
+      file.size >
+      10 *
+        1024 *
+        1024
+    ) {
+      throw new Error(
+        "The maximum file size is 10 MB."
+      );
+    }
+
+    const fileName =
+      cleanFileName(
+        file.name
+      );
+
+    const filePath =
+      `${auth.companyId}/${load.id}/${Date.now()}-${fileName}`;
+
+    const {
+      error: uploadError,
+    } =
+      await supabase.storage
+        .from(
+          "fleet-documents"
+        )
+        .upload(
+          filePath,
+          file,
+          {
+            upsert: false,
+          }
+        );
+
+    if (uploadError) {
+      console.error(
+        "Storage upload error:",
+        uploadError.message
+      );
+
+      throw new Error(
+        uploadError.message
+      );
+    }
+
+    const {
+      error: metadataError,
+    } =
+      await supabase
+        .from(
+          "load_documents"
+        )
+        .insert({
+          company_id:
+            auth.companyId,
+          load_id:
+            load.id,
+          document_type:
+            selectedDocumentType,
+          file_name:
+            file.name,
+          file_path:
+            filePath,
+          uploaded_by:
+            auth.userId,
+        });
+
+    if (metadataError) {
+      await supabase.storage
+        .from(
+          "fleet-documents"
+        )
+        .remove([filePath]);
+
+      console.error(
+        "Document record error:",
+        metadataError.message
+      );
+
+      throw new Error(
+        metadataError.message
+      );
+    }
+
+    return true;
+  }
+
+  async function uploadCapturedPages() {
+    if (!auth || !load) {
+      setError(
+        "Driver session or load information is unavailable."
+      );
+
+      return;
+    }
+
+    if (capturedFiles.length === 0) {
+      setError(
+        "No captured pages to upload."
+      );
+
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setUploading(true);
+
+    const remainingFiles: File[] = [];
+    let uploadedCount = 0;
+    let podPagesUploaded = false;
+
+    try {
+      for (let index = 0; index < capturedFiles.length; index += 1) {
+        const file = capturedFiles[index];
+
+        try {
+          await uploadDocumentFile(
+            file,
+            documentType
+          );
+
+          uploadedCount += 1;
+
+          if (
+            documentType === "pod"
+          ) {
+            podPagesUploaded = true;
+          }
+        } catch (err) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Unable to upload document.";
+
+          remainingFiles.push(file);
+
+          setError(
+            `Page ${index + 1} ("${file.name}") failed: ${message}`
+          );
+
+          break;
+        }
+      }
+
+      if (uploadedCount > 0) {
+        let podStatusUpdated = false;
+
+        if (
+          documentType === "pod" &&
+          load.status === "delivered" &&
+          podPagesUploaded
+        ) {
+          const {
+            error: podError,
+          } = await supabase.rpc(
+            "driver_confirm_pod_received",
+            {
+              target_load_id: load.id,
+            }
+          );
+
+          if (podError) {
+            console.error(
+              "Automatic POD status error:",
+              podError.message,
+              podError.code,
+              podError.details,
+              podError.hint
+            );
+
+            setSuccess(
+              `${uploadedCount} ${documentType.toUpperCase()} page${uploadedCount === 1 ? "" : "s"} uploaded successfully. FleetOS could not automatically update the load to POD Received.`
+            );
+          } else {
+            podStatusUpdated = true;
+          }
+        }
+
+        if (
+          documentType === "pod" &&
+          podStatusUpdated
+        ) {
+          setSuccess(
+            `${uploadedCount} POD page${uploadedCount === 1 ? "" : "s"} uploaded successfully. Load status automatically updated to POD Received.`
+          );
+        } else if (
+          documentType === "pod" &&
+          uploadedCount > 0
+        ) {
+          setSuccess(
+            `${uploadedCount} POD page${uploadedCount === 1 ? "" : "s"} uploaded successfully.`
+          );
+        } else if (
+          documentType === "bol"
+        ) {
+          setSuccess(
+            `${uploadedCount} BOL page${uploadedCount === 1 ? "" : "s"} uploaded successfully.`
+          );
+        }
+      }
+
+      if (remainingFiles.length === 0) {
+        setCapturedFiles([]);
+      } else {
+        setCapturedFiles(remainingFiles);
+      }
+
+      if (uploadedCount > 0) {
+        await loadDocuments();
+        await loadAssignedLoad();
+      }
+    } catch (err) {
+      console.error(
+        "Captured document upload error:",
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to upload captured pages."
+      );
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -612,157 +875,29 @@ export default function DriverLoadPage() {
       return;
     }
 
-    const allowedTypes = [
-      "application/pdf",
-      "image/jpeg",
-      "image/png",
-    ];
-
-    if (
-      !allowedTypes.includes(
-        selectedFile.type
-      )
-    ) {
-      setError(
-        "Only PDF, JPG and PNG files are allowed."
-      );
-
-      return;
-    }
-
-    if (
-      selectedFile.size >
-      10 *
-        1024 *
-        1024
-    ) {
-      setError(
-        "The maximum file size is 10 MB."
-      );
-
-      return;
-    }
-
     setUploading(true);
 
     try {
-      const fileName =
-        cleanFileName(
-          selectedFile.name
-        );
+      await uploadDocumentFile(
+        selectedFile,
+        documentType
+      );
 
-      const filePath =
-        `${auth.companyId}/${load.id}/${Date.now()}-${fileName}`;
-
-      // ========================================================
-      // 1. UPLOAD PRIVATE FILE
-      // ========================================================
-
-      const {
-        error:
-          uploadError,
-      } =
-        await supabase.storage
-          .from(
-            "fleet-documents"
-          )
-          .upload(
-            filePath,
-            selectedFile,
-            {
-              upsert:
-                false,
-            }
-          );
-
-      if (uploadError) {
-        console.error(
-          "Storage upload error:",
-          uploadError.message
-        );
-
-        throw new Error(
-          uploadError.message
-        );
-      }
-
-      // ========================================================
-      // 2. CREATE DATABASE RECORD
-      // ========================================================
-
-      const {
-        error:
-          metadataError,
-      } =
-        await supabase
-          .from(
-            "load_documents"
-          )
-          .insert({
-            company_id:
-              auth.companyId,
-
-            load_id:
-              load.id,
-
-            document_type:
-              documentType,
-
-            file_name:
-              selectedFile.name,
-
-            file_path:
-              filePath,
-
-            uploaded_by:
-              auth.userId,
-          });
-
-      if (metadataError) {
-        await supabase.storage
-          .from(
-            "fleet-documents"
-          )
-          .remove([
-            filePath,
-          ]);
-
-        console.error(
-          "Document record error:",
-          metadataError.message
-        );
-
-        throw new Error(
-          metadataError.message
-        );
-      }
-
-      // ========================================================
-      // 3. AUTOMATIC POD RECEIVED
-      // ========================================================
-
-      let podStatusUpdated =
-        false;
+      let podStatusUpdated = false;
 
       if (
-        documentType ===
-          "pod" &&
-        load.status ===
-          "delivered"
+        documentType === "pod" &&
+        load.status === "delivered"
       ) {
         const {
-          data:
-            podResult,
-          error:
-            podError,
-        } =
-          await supabase.rpc(
-            "driver_confirm_pod_received",
-            {
-              target_load_id:
-                load.id,
-            }
-          );
+          data: podResult,
+          error: podError,
+        } = await supabase.rpc(
+          "driver_confirm_pod_received",
+          {
+            target_load_id: load.id,
+          }
+        );
 
         if (podError) {
           console.error(
@@ -782,48 +917,33 @@ export default function DriverLoadPage() {
             podResult
           );
 
-          podStatusUpdated =
-            true;
+          podStatusUpdated = true;
         }
       }
 
-      // ========================================================
-      // 4. SUCCESS MESSAGE
-      // ========================================================
-
       if (
-        documentType ===
-          "pod" &&
+        documentType === "pod" &&
         podStatusUpdated
       ) {
         setSuccess(
           "POD uploaded successfully. Load status automatically updated to POD Received."
         );
       } else if (
-        documentType ===
-          "pod" &&
-        load.status !==
-          "delivered"
+        documentType === "pod" &&
+        load.status !== "delivered"
       ) {
         setSuccess(
           "POD uploaded successfully."
         );
       } else if (
-        documentType ===
-        "bol"
+        documentType === "bol"
       ) {
         setSuccess(
           "BOL uploaded successfully."
         );
       }
 
-      // ========================================================
-      // 5. RESET FILE
-      // ========================================================
-
-      setSelectedFile(
-        null
-      );
+      setSelectedFile(null);
 
       const input =
         document.getElementById(
@@ -833,10 +953,6 @@ export default function DriverLoadPage() {
       if (input) {
         input.value = "";
       }
-
-      // ========================================================
-      // 6. REFRESH
-      // ========================================================
 
       await loadDocuments();
       await loadAssignedLoad();
@@ -1469,14 +1585,71 @@ export default function DriverLoadPage() {
             </div>
 
             {Capacitor.isNativePlatform() && (
-              <button
-                type="button"
-                onClick={() => void captureDocumentPhoto()}
-                disabled={cameraBusy || uploading}
-                className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {cameraBusy ? "Opening camera..." : "Take Photo"}
-              </button>
+              <div className="space-y-3 lg:col-span-2">
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void captureDocumentPhoto()}
+                    disabled={cameraBusy || uploading}
+                    className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {cameraBusy ? "Opening camera..." : capturedFiles.length > 0 ? "Capture Another Page" : "Take Photo"}
+                  </button>
+
+                  {capturedFiles.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void uploadCapturedPages()}
+                      disabled={cameraBusy || uploading}
+                      className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {uploading ? "Uploading..." : "Upload Captured Pages"}
+                    </button>
+                  )}
+
+                  {capturedFiles.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setCapturedFiles([])}
+                      disabled={cameraBusy || uploading}
+                      className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                {capturedFiles.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {capturedFiles.length} page{capturedFiles.length === 1 ? "" : "s"} captured
+                    </p>
+
+                    <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                      {capturedFiles.map((file, index) => (
+                        <li
+                          key={`${file.name}-${index}`}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                        >
+                          <span className="truncate">{file.name}</span>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCapturedFiles((prev) =>
+                                prev.filter((_, currentIndex) => currentIndex !== index)
+                              )
+                            }
+                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             )}
 
             <button
