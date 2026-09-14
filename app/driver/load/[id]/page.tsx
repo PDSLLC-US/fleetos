@@ -12,6 +12,15 @@ import {
   useRouter,
 } from "next/navigation";
 
+import {
+  Capacitor,
+} from "@capacitor/core";
+import {
+  Camera,
+  CameraResultType,
+  CameraSource,
+} from "@capacitor/camera";
+
 import { createClient } from "@/lib/supabase/client";
 
 import {
@@ -145,6 +154,11 @@ export default function DriverLoadPage() {
   const [
     uploading,
     setUploading,
+  ] = useState(false);
+
+  const [
+    cameraBusy,
+    setCameraBusy,
   ] = useState(false);
 
   const [
@@ -502,6 +516,69 @@ export default function DriverLoadPage() {
         /[^a-zA-Z0-9._-]/g,
         "-"
       );
+  }
+
+  async function captureDocumentPhoto() {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setCameraBusy(true);
+
+    try {
+      const photo = await Camera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        quality: 85,
+        allowEditing: false,
+      });
+
+      if (!photo.webPath) {
+        setError(
+          "Unable to access the captured photo. Please try again."
+        );
+
+        return;
+      }
+
+      const response = await fetch(photo.webPath);
+
+      const blob = await response.blob();
+
+      const fileName = `${
+        documentType === "pod" ? "pod" : "document"
+      }-${Date.now()}.jpg`;
+
+      const file = new File([blob], fileName, {
+        type: blob.type || "image/jpeg",
+      });
+
+      setSelectedFile(file);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unknown camera error";
+
+      if (
+        /cancel|canceled|cancelled|user.*cancel/i.test(message)
+      ) {
+        return;
+      }
+
+      console.error(
+        "Document camera capture error:",
+        err
+      );
+
+      setError(
+        "Unable to capture a photo right now. Please use the file picker instead."
+      );
+    } finally {
+      setCameraBusy(false);
+    }
   }
 
   // ============================================================
@@ -1378,6 +1455,12 @@ export default function DriverLoadPage() {
                 className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900"
               />
 
+              {selectedFile && (
+                <p className="mt-2 text-xs font-medium text-slate-700">
+                  Selected file: {selectedFile.name}
+                </p>
+              )}
+
               <p className="mt-2 text-xs text-slate-600">
                 PDF, JPG or
                 PNG — maximum
@@ -1385,10 +1468,21 @@ export default function DriverLoadPage() {
               </p>
             </div>
 
+            {Capacitor.isNativePlatform() && (
+              <button
+                type="button"
+                onClick={() => void captureDocumentPhoto()}
+                disabled={cameraBusy || uploading}
+                className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {cameraBusy ? "Opening camera..." : "Take Photo"}
+              </button>
+            )}
+
             <button
               type="submit"
               disabled={
-                uploading
+                uploading || cameraBusy
               }
               className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
             >
