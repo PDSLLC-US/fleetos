@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FleetOS</string>
+    <string name="title_activity_main">FleetOS</string>
+    <string name="package_name">com.platinumdigital.fleetos</string>
+    <string name="custom_url_scheme">com.platinumdigital.fleetos</string>
+</resources>
