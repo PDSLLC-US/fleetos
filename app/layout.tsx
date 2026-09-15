@@ -8,6 +8,7 @@ import {
 } from "next/font/google";
 
 import CapacitorBackButton from "@/components/CapacitorBackButton";
+import CapacitorPushNotifications from "@/components/CapacitorPushNotifications";
 import SubscriptionNotice from "@/components/SubscriptionNotice";
 
 import "./globals.css";
@@ -48,6 +49,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <CapacitorBackButton />
+        <CapacitorPushNotifications />
         <SubscriptionNotice />
 
         {children}
