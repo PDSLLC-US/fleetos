@@ -5,9 +5,14 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { createClient } from "@/lib/supabase/client";
+import type {
+  SupabaseClient,
+  AuthChangeEvent,
+  Session,
+} from "@supabase/supabase-js";
 
 export default function CapacitorPushNotifications() {
-  const supabaseRef = useRef<any | null>(null);
+  const supabaseRef = useRef<SupabaseClient | null>(null);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) {
@@ -63,7 +68,7 @@ export default function CapacitorPushNotifications() {
             let upsertCalled = false;
             let attemptInProgress = false;
 
-            const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            const { data } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
               if (!session?.user) return; // do not call when session/user is absent
               if (upsertCalled || attemptInProgress) return;
 
