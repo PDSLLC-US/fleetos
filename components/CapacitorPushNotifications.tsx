@@ -1,18 +1,26 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export default function CapacitorPushNotifications() {
+  const supabaseRef = useRef<any | null>(null);
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) {
       return;
     }
 
     let authSub: { subscription?: { unsubscribe?: () => void } } | null = null;
+
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+
+    const supabase = supabaseRef.current;
 
     const listeners = [
       PushNotifications.addListener("registration", async (token) => {
