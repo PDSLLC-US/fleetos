@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
+import { supabase } from "@/lib/supabase";
 
 export default function CapacitorPushNotifications() {
   useEffect(() => {
@@ -11,9 +12,80 @@ export default function CapacitorPushNotifications() {
       return;
     }
 
+    let authSub: { subscription?: { unsubscribe?: () => void } } | null = null;
+
     const listeners = [
-      PushNotifications.addListener("registration", (token) => {
-        console.log("FleetOS FCM registration token:", token.value);
+      PushNotifications.addListener("registration", async (token) => {
+        try {
+          if (!token?.value) return;
+
+          // Small metadata indicating this registration came from the FleetOS Capacitor app
+          const metadata = {
+            source: "fleetos.capacitor",
+            timestamp: new Date().toISOString(),
+            platform: Capacitor.getPlatform(),
+          } as const;
+
+          // Try immediate auth lookup
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+
+          async function callUpsert() {
+            try {
+              const { error: rpcError } = await supabase.rpc("upsert_push_device", {
+                p_fcm_token: token.value,
+                p_platform: Capacitor.getPlatform(),
+                p_device_id: null,
+                p_app_version: null,
+                p_metadata: metadata,
+                p_is_active: true,
+              });
+
+              if (rpcError) {
+                console.error("FleetOS push device registration failed:", rpcError);
+              } else {
+                console.log("FleetOS push device registered successfully");
+              }
+            } catch (err) {
+              console.error("FleetOS push device registration error:", err);
+            }
+          }
+
+          if (userError || !userData?.user) {
+            // No authenticated user yet; wait for auth restoration and try once when session.user becomes available.
+            let upsertCalled = false;
+            let attemptInProgress = false;
+
+            const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+              if (!session?.user) return; // do not call when session/user is absent
+              if (upsertCalled || attemptInProgress) return;
+
+              attemptInProgress = true;
+              try {
+                await callUpsert();
+                upsertCalled = true;
+
+                // Unsubscribe the temporary listener after a successful attempt
+                try {
+                  if (data?.subscription?.unsubscribe) {
+                    data.subscription.unsubscribe();
+                  } else if (typeof (data as any)?.unsubscribe === "function") {
+                    (data as any).unsubscribe();
+                  }
+                } catch {}
+              } finally {
+                attemptInProgress = false;
+              }
+            });
+
+            authSub = data ?? null;
+            return;
+          }
+
+          // Authenticated now - call RPC
+          await callUpsert();
+        } catch (error) {
+          console.error("FleetOS FCM registration handler error:", error);
+        }
       }),
       PushNotifications.addListener("registrationError", (error) => {
         console.error("FleetOS FCM registration error:", error);
@@ -54,6 +126,12 @@ export default function CapacitorPushNotifications() {
 
     return () => {
       active = false;
+
+      try {
+        if (authSub?.subscription?.unsubscribe) {
+          authSub.subscription.unsubscribe();
+        }
+      } catch {}
 
       void Promise.all(
         listeners.map((listener) =>
