@@ -38,17 +38,17 @@ const OWNER_ADMIN: Role[] = [
 const navItems: NavItem[] = [
   {
     label: "Dashboard",
-    icon: "M3 12h18M3 6h18M3 18h18",
+    icon: "M4 13h6V4H4v9Zm10 7h6v-9h-6v9ZM4 20h6v-3H4v3Zm10-13h6V4h-6v3Z",
     roles: ALL_MANAGEMENT_ROLES,
   },
   {
     label: "Loads",
-    icon: "M4 6h16M4 12h16M4 18h16",
+    icon: "M3 7h11v10H3V7Zm11 3h4l3 3v4h-7v-7ZM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
     roles: ["owner", "admin", "dispatcher", "fleet_manager"],
   },
   {
     label: "Fleet",
-    icon: "M5 12h14M7 6h10M9 18h6",
+    icon: "M3 6h18M5 12h14M8 18h8",
     roles: ["owner", "admin", "fleet_manager"],
     children: [
       {
@@ -68,7 +68,7 @@ const navItems: NavItem[] = [
   {
     label: "Drivers",
     icon:
-      "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z M6 20c0-2.21 1.79-4 4-4h0c2.21 0 4 1.79 4 4v2",
+      "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z M5 21c0-3.31 2.69-6 6-6h2c3.31 0 6 2.69 6 6",
     roles: [
       "owner",
       "admin",
@@ -89,7 +89,8 @@ const navItems: NavItem[] = [
   },
   {
     label: "Finance",
-    icon: "M4 6h16M8 20h8M12 6v14",
+    icon:
+      "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
     roles: ["owner", "admin", "accountant", "dispatcher"],
     children: [
       {
@@ -105,7 +106,7 @@ const navItems: NavItem[] = [
   {
     label: "Documents",
     icon:
-      "M6 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+      "M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm8 0v5h5M8 13h8M8 17h6",
     roles: ALL_MANAGEMENT_ROLES,
   },
   {
@@ -116,7 +117,7 @@ const navItems: NavItem[] = [
   },
   {
     label: "Billing",
-    icon: "M4 6h16v12H4z M4 10h16 M8 15h4",
+    icon: "M3 6h18v12H3V6Zm0 4h18M7 15h4",
     roles: OWNER_ADMIN,
   },
   {
@@ -179,6 +180,21 @@ function getRouteForLabel(label: string) {
   }
 }
 
+function isRouteActive(
+  pathname: string,
+  route: string | undefined,
+) {
+  if (!route) {
+    return false;
+  }
+
+  if (route === "/") {
+    return pathname === "/";
+  }
+
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
 export default function FleetOSShell({
   companyName,
   userFullName,
@@ -195,7 +211,9 @@ export default function FleetOSShell({
         .filter((item) => item.roles.includes(role))
         .map((item) => ({
           ...item,
-          children: item.children?.filter((child) => child.roles.includes(role)),
+          children: item.children?.filter((child) =>
+            child.roles.includes(role),
+          ),
         }))
     : [];
 
@@ -204,74 +222,188 @@ export default function FleetOSShell({
     onNavigate(path);
   }
 
+  function hasActiveChild(item: NavItem) {
+    return Boolean(
+      item.children?.some((child) =>
+        isRouteActive(
+          pathname,
+          getRouteForLabel(child.label),
+        ),
+      ),
+    );
+  }
+
+  const initials =
+    userFullName
+      ?.trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "FO";
+
   return (
     <>
-      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-80 lg:self-start lg:flex-col lg:overflow-hidden lg:bg-slate-950 lg:px-6 lg:py-8 lg:text-slate-100">
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0 space-y-4">
-            <FleetOSBrand variant="sidebar" />
+      {/* ==================================================
+          DESKTOP MANAGEMENT SIDEBAR
+      ================================================== */}
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-sky-400">
-                Active Company
-              </p>
+      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[292px] lg:flex-none lg:self-start lg:flex-col lg:overflow-hidden lg:border-r lg:border-white/5 lg:bg-[#06111f] lg:text-slate-100">
+        {/* Ambient background */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-cyan-400/5 blur-3xl" />
+        </div>
 
-              <p className="mt-1 truncate text-base font-semibold text-white">
+        <div className="relative flex min-h-0 flex-1 flex-col px-5 pb-5 pt-6">
+          {/* BRAND */}
+          <div className="shrink-0">
+            <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.035] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+              <FleetOSBrand variant="sidebar" />
+            </div>
+
+            {/* ACTIVE COMPANY */}
+            <div className="mt-4 rounded-[20px] border border-blue-400/10 bg-gradient-to-br from-blue-500/[0.10] to-cyan-400/[0.025] px-4 py-3.5">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-40" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
+                </span>
+
+                <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-cyan-300">
+                  Active Company
+                </p>
+              </div>
+
+              <p className="mt-2 truncate text-sm font-semibold tracking-tight text-white">
                 {companyName || "Operations Portal"}
               </p>
             </div>
           </div>
 
-          <nav className="mt-8 min-h-0 flex-1 space-y-1 overflow-y-auto pr-2 pb-4 text-sm leading-6">
+          {/* NAVIGATION */}
+          <nav className="mt-6 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1 pb-4 text-sm [scrollbar-width:thin] [scrollbar-color:#1e3a5f_transparent]">
+            <p className="mb-3 px-3 text-[9px] font-bold uppercase tracking-[0.28em] text-slate-600">
+              Command Center
+            </p>
+
             {visibleNavItems.map((item) => {
               const route = getRouteForLabel(item.label);
-              const isActive = Boolean(route && pathname === route);
+              const directActive = isRouteActive(pathname, route);
+              const childActive = hasActiveChild(item);
+              const sectionActive = directActive || childActive;
 
               return (
                 <div key={item.label} className="space-y-1">
                   <button
                     type="button"
-                    onClick={route ? () => handleNavigate(route) : undefined}
+                    onClick={
+                      route
+                        ? () => handleNavigate(route)
+                        : undefined
+                    }
                     disabled={!route}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
-                      route ? "hover:bg-slate-800 hover:text-white" : "cursor-not-allowed opacity-50"
-                    } ${isActive ? "bg-slate-800 text-white" : ""}`}
+                    className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-[15px] px-3 py-2.5 text-left font-medium transition-all duration-200 ${
+                      route
+                        ? "hover:bg-white/[0.055] hover:text-white"
+                        : "cursor-default"
+                    } ${
+                      sectionActive
+                        ? "bg-gradient-to-r from-blue-600/20 to-cyan-400/[0.04] text-white shadow-[inset_0_0_0_1px_rgba(56,189,248,0.08)]"
+                        : "text-slate-400"
+                    }`}
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-5 w-5 flex-none stroke-current"
-                      fill="none"
-                      strokeWidth="1.8"
-                    >
-                      <path
-                        d={item.icon}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    {sectionActive ? (
+                      <span className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full bg-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.7)]" />
+                    ) : null}
 
-                    <span>{item.label}</span>
+                    <span
+                      className={`flex h-8 w-8 flex-none items-center justify-center rounded-xl transition ${
+                        sectionActive
+                          ? "bg-blue-500/15 text-cyan-300"
+                          : "bg-white/[0.035] text-slate-500 group-hover:text-slate-300"
+                      }`}
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-[17px] w-[17px] stroke-current"
+                        fill="none"
+                        strokeWidth="1.7"
+                      >
+                        <path
+                          d={item.icon}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+
+                    <span className="min-w-0 flex-1 truncate">
+                      {item.label}
+                    </span>
+
+                    {item.children?.length ? (
+                      <svg
+                        viewBox="0 0 24 24"
+                        className={`h-4 w-4 flex-none transition ${
+                          childActive
+                            ? "text-cyan-400"
+                            : "text-slate-700"
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          d="m9 18 6-6-6-6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : null}
                   </button>
 
                   {item.children ? (
-                    <div className="space-y-1 border-l border-slate-800 pl-8">
+                    <div className="relative ml-[28px] space-y-0.5 border-l border-slate-800/80 py-1 pl-5">
                       {item.children.map((child) => {
-                        const childRoute = getRouteForLabel(child.label);
-                        const childActive = Boolean(childRoute && pathname === childRoute);
+                        const childRoute =
+                          getRouteForLabel(child.label);
+
+                        const childIsActive =
+                          isRouteActive(
+                            pathname,
+                            childRoute,
+                          );
 
                         return (
                           <button
                             key={child.label}
                             type="button"
-                            onClick={childRoute ? () => handleNavigate(childRoute) : undefined}
-                            disabled={!childRoute}
-                            className={`flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm ${
+                            onClick={
                               childRoute
-                                ? "text-slate-400 hover:bg-slate-800 hover:text-white"
-                                : "cursor-not-allowed text-slate-500 opacity-50"
-                            } ${childActive ? "bg-slate-800 text-white" : ""}`}
+                                ? () =>
+                                    handleNavigate(
+                                      childRoute,
+                                    )
+                                : undefined
+                            }
+                            disabled={!childRoute}
+                            className={`relative flex w-full items-center rounded-xl px-3 py-2 text-left text-[13px] transition ${
+                              childRoute
+                                ? "hover:bg-white/[0.04] hover:text-white"
+                                : "cursor-not-allowed opacity-40"
+                            } ${
+                              childIsActive
+                                ? "font-semibold text-cyan-300"
+                                : "text-slate-500"
+                            }`}
                           >
-                            <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
+                            {childIsActive ? (
+                              <span className="absolute -left-[21px] h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]" />
+                            ) : null}
+
                             {child.label}
                           </button>
                         );
@@ -282,152 +414,306 @@ export default function FleetOSShell({
               );
             })}
           </nav>
-        </div>
 
-        <div className="mt-4 shrink-0 rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
-          <p className="truncate text-sm font-semibold text-white">
-            {userFullName || "FleetOS User"}
-          </p>
+          {/* USER CARD */}
+          <div className="shrink-0 border-t border-white/[0.06] pt-4">
+            <div className="rounded-[20px] border border-white/[0.07] bg-white/[0.035] p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 flex-none items-center justify-center rounded-[13px] bg-gradient-to-br from-blue-500 to-cyan-400 text-xs font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.25)]">
+                  {initials}
+                </div>
 
-          <p className="mt-1 text-xs uppercase tracking-[0.25em] text-slate-500">
-            {roleLabel(role)}
-          </p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-white">
+                    {userFullName || "FleetOS User"}
+                  </p>
 
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => handleNavigate("/account")}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              My Account
-            </button>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              disabled={loggingOut}
-              className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {loggingOut ? "Logging out..." : "Logout"}
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      <div className="lg:hidden">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <div className="min-w-0">
-            <FleetOSBrand variant="header" />
-
-            <p className="mt-2 max-w-[240px] truncate text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-              {companyName || "Dashboard"}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white"
-            aria-label="Open menu"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5">
-              <path
-                d="M4 7h16M4 12h16M4 17h16"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-
-        {mobileMenuOpen ? (
-          <div className="fixed inset-0 z-40 bg-slate-950/80 px-4 py-5 sm:px-6">
-            <div className="h-full overflow-y-auto rounded-3xl bg-slate-950 p-5 text-slate-100 shadow-2xl">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 space-y-3">
-                  <FleetOSBrand variant="sidebar" />
-
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-sky-400">
-                      Active Company
-                    </p>
-
-                    <p className="mt-1 max-w-[220px] truncate text-base font-semibold text-white">
-                      {companyName || "Operations Portal"}
-                    </p>
-                  </div>
+                  <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                    {roleLabel(role)}
+                  </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-white"
-                  aria-label="Close menu"
+                  onClick={() =>
+                    handleNavigate("/account")
+                  }
+                  className="flex h-8 w-8 flex-none items-center justify-center rounded-xl text-slate-500 transition hover:bg-white/[0.06] hover:text-cyan-300"
+                  aria-label="My account"
                 >
-                  <svg viewBox="0 0 24 24" className="h-5 w-5">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
                     <path
-                      d="M6 6l12 12M6 18L18 6"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                      d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21a8 8 0 0 1 16 0"
                       strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
                   </svg>
                 </button>
               </div>
 
-              <nav className="mt-8 space-y-3 text-sm leading-6">
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleNavigate("/account")
+                  }
+                  className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-[11px] font-semibold text-slate-300 transition hover:border-blue-400/20 hover:bg-blue-500/10 hover:text-white"
+                >
+                  Account
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  disabled={loggingOut}
+                  className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-[11px] font-semibold text-slate-400 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-50"
+                >
+                  {loggingOut
+                    ? "Logging out..."
+                    : "Logout"}
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-3 text-center text-[8px] font-medium uppercase tracking-[0.22em] text-slate-700">
+              Fleet Operations System
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      {/* ==================================================
+          MOBILE MANAGEMENT HEADER
+      ================================================== */}
+
+      <div className="lg:hidden">
+        <div className="relative overflow-hidden border-b border-slate-800 bg-[#06111f] px-4 py-3.5 shadow-lg">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl"
+          />
+
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <FleetOSBrand variant="sidebar" />
+
+              <div className="mt-2 flex items-center gap-2">
+                <span className="h-1.5 w-1.5 flex-none rounded-full bg-cyan-400" />
+
+                <p className="truncate text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                  {companyName || "Operations Portal"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="inline-flex h-11 w-11 flex-none items-center justify-center rounded-[15px] border border-white/[0.08] bg-white/[0.055] text-white shadow-lg transition active:scale-95"
+              aria-label="Open menu"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+              >
+                <path
+                  d="M5 7h14M5 12h14M5 17h14"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* ==================================================
+            MOBILE DRAWER
+        ================================================== */}
+
+        {mobileMenuOpen ? (
+          <div className="fixed inset-0 z-50 bg-[#020813]/80 backdrop-blur-sm">
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 h-full w-full"
+            />
+
+            <div className="absolute inset-y-0 left-0 flex w-[88%] max-w-[360px] flex-col overflow-hidden border-r border-white/[0.07] bg-[#06111f] text-slate-100 shadow-2xl">
+              <div className="relative border-b border-white/[0.06] px-5 pb-5 pt-6">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl"
+                />
+
+                <div className="relative flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <FleetOSBrand variant="sidebar" />
+
+                    <div className="mt-4 rounded-[18px] border border-blue-400/10 bg-blue-500/[0.07] px-3.5 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+
+                        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-cyan-300">
+                          Active Company
+                        </p>
+                      </div>
+
+                      <p className="mt-1.5 max-w-[220px] truncate text-sm font-semibold text-white">
+                        {companyName ||
+                          "Operations Portal"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-[14px] border border-white/[0.07] bg-white/[0.05] text-slate-300 transition hover:text-white"
+                    aria-label="Close menu"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5"
+                    >
+                      <path
+                        d="M6 6l12 12M6 18 18 6"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-5">
+                <p className="mb-3 px-3 text-[9px] font-bold uppercase tracking-[0.28em] text-slate-600">
+                  Command Center
+                </p>
+
                 {visibleNavItems.map((item) => {
-                  const route = getRouteForLabel(item.label);
+                  const route =
+                    getRouteForLabel(item.label);
+
+                  const directActive =
+                    isRouteActive(pathname, route);
+
+                  const childActive =
+                    hasActiveChild(item);
+
+                  const sectionActive =
+                    directActive || childActive;
 
                   return (
-                    <div key={item.label} className="space-y-1">
+                    <div
+                      key={item.label}
+                      className="space-y-1"
+                    >
                       <button
                         type="button"
-                        onClick={route ? () => handleNavigate(route) : undefined}
+                        onClick={
+                          route
+                            ? () =>
+                                handleNavigate(route)
+                            : undefined
+                        }
                         disabled={!route}
-                        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
-                          route ? "hover:bg-slate-800" : "cursor-not-allowed opacity-50"
+                        className={`relative flex w-full items-center gap-3 rounded-[15px] px-3 py-3 text-left text-sm font-medium transition ${
+                          route
+                            ? "active:scale-[0.99]"
+                            : "cursor-default"
+                        } ${
+                          sectionActive
+                            ? "bg-gradient-to-r from-blue-600/20 to-cyan-400/[0.04] text-white"
+                            : "text-slate-400"
                         }`}
                       >
-                        <svg
-                          viewBox="0 0 24 24"
-                          className="h-5 w-5 flex-none stroke-current"
-                          fill="none"
-                          strokeWidth="1.8"
-                        >
-                          <path
-                            d={item.icon}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        {sectionActive ? (
+                          <span className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full bg-cyan-400" />
+                        ) : null}
 
-                        <span>{item.label}</span>
+                        <span
+                          className={`flex h-8 w-8 flex-none items-center justify-center rounded-xl ${
+                            sectionActive
+                              ? "bg-blue-500/15 text-cyan-300"
+                              : "bg-white/[0.035] text-slate-500"
+                          }`}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-[17px] w-[17px]"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                          >
+                            <path
+                              d={item.icon}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+
+                        <span className="flex-1">
+                          {item.label}
+                        </span>
                       </button>
 
                       {item.children ? (
-                        <div className="space-y-1 border-l border-slate-800 pl-8">
-                          {item.children.map((child) => {
-                            const childRoute = getRouteForLabel(child.label);
+                        <div className="ml-7 space-y-0.5 border-l border-slate-800 pl-5">
+                          {item.children.map(
+                            (child) => {
+                              const childRoute =
+                                getRouteForLabel(
+                                  child.label,
+                                );
 
-                            return (
-                              <button
-                                key={child.label}
-                                type="button"
-                                onClick={childRoute ? () => handleNavigate(childRoute) : undefined}
-                                disabled={!childRoute}
-                                className={`flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-sm ${
-                                  childRoute
-                                    ? "text-slate-300 hover:bg-slate-800"
-                                    : "cursor-not-allowed text-slate-500 opacity-50"
-                                }`}
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-                                {child.label}
-                              </button>
-                            );
-                          })}
+                              const childIsActive =
+                                isRouteActive(
+                                  pathname,
+                                  childRoute,
+                                );
+
+                              return (
+                                <button
+                                  key={child.label}
+                                  type="button"
+                                  onClick={
+                                    childRoute
+                                      ? () =>
+                                          handleNavigate(
+                                            childRoute,
+                                          )
+                                      : undefined
+                                  }
+                                  disabled={
+                                    !childRoute
+                                  }
+                                  className={`relative flex w-full items-center rounded-xl px-3 py-2.5 text-left text-[13px] ${
+                                    childIsActive
+                                      ? "font-semibold text-cyan-300"
+                                      : "text-slate-500"
+                                  }`}
+                                >
+                                  {childIsActive ? (
+                                    <span className="absolute -left-[21px] h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                                  ) : null}
+
+                                  {child.label}
+                                </button>
+                              );
+                            },
+                          )}
                         </div>
                       ) : null}
                     </div>
@@ -435,32 +721,47 @@ export default function FleetOSShell({
                 })}
               </nav>
 
-              <div className="mt-8 rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
-                <p className="truncate text-sm font-semibold text-white">
-                  {userFullName || "FleetOS User"}
-                </p>
+              <div className="border-t border-white/[0.06] p-4">
+                <div className="rounded-[20px] border border-white/[0.07] bg-white/[0.035] p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-[13px] bg-gradient-to-br from-blue-500 to-cyan-400 text-xs font-bold text-white">
+                      {initials}
+                    </div>
 
-                <p className="mt-1 text-xs uppercase tracking-[0.25em] text-slate-500">
-                  {roleLabel(role)}
-                </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">
+                        {userFullName ||
+                          "FleetOS User"}
+                      </p>
 
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => handleNavigate("/account")}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    My Account
-                  </button>
+                      <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        {roleLabel(role)}
+                      </p>
+                    </div>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    disabled={loggingOut}
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  >
-                    {loggingOut ? "Logging out..." : "Logout"}
-                  </button>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleNavigate("/account")
+                      }
+                      className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-xs font-semibold text-slate-300"
+                    >
+                      Account
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onLogout}
+                      disabled={loggingOut}
+                      className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-xs font-semibold text-slate-400 disabled:opacity-50"
+                    >
+                      {loggingOut
+                        ? "Logging out..."
+                        : "Logout"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,21 +1,12 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  usePathname,
-  useRouter,
-} from "next/navigation";
-
-import {
-  createClient,
-} from "@/lib/supabase/client";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import FleetOSBrand from "@/components/FleetOSBrand";
 import FleetOSShell from "@/components/FleetOSShell";
+
+import { createClient } from "@/lib/supabase/client";
 
 import {
   getAuthRole,
@@ -23,199 +14,9 @@ import {
   type AuthRoleContext,
 } from "@/lib/auth-role";
 
-type Role =
-  AuthRoleContext["role"];
-
-type NavChild = {
-  label: string;
-  roles: Role[];
-};
-
-type NavItem = {
-  label: string;
-  icon: string;
-  roles: Role[];
-  children?: NavChild[];
-};
-
-const ALL_MANAGEMENT_ROLES: Role[] =
-  [
-    "owner",
-    "admin",
-    "dispatcher",
-    "accountant",
-    "fleet_manager",
-  ];
-
-const OWNER_ADMIN: Role[] = [
-  "owner",
-  "admin",
-];
-
-const navItems: NavItem[] = [
-  {
-    label: "Dashboard",
-    icon: "M3 12h18M3 6h18M3 18h18",
-    roles:
-      ALL_MANAGEMENT_ROLES,
-  },
-
-  {
-    label: "Loads",
-    icon: "M4 6h16M4 12h16M4 18h16",
-    roles: [
-      "owner",
-      "admin",
-      "dispatcher",
-      "fleet_manager",
-    ],
-  },
-
-  {
-    label: "Fleet",
-    icon: "M5 12h14M7 6h10M9 18h6",
-    roles: [
-      "owner",
-      "admin",
-      "fleet_manager",
-    ],
-
-    children: [
-      {
-        label: "Trucks",
-        roles: [
-          "owner",
-          "admin",
-          "fleet_manager",
-        ],
-      },
-      {
-        label: "Trailers",
-        roles: [
-          "owner",
-          "admin",
-          "fleet_manager",
-        ],
-      },
-      {
-        label:
-          "Maintenance",
-        roles: [
-          "owner",
-          "admin",
-          "fleet_manager",
-        ],
-      },
-    ],
-  },
-
-  {
-    label: "Drivers",
-    icon:
-      "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z M6 20c0-2.21 1.79-4 4-4h0c2.21 0 4 1.79 4 4v2",
-
-    roles: [
-      "owner",
-      "admin",
-      "dispatcher",
-      "fleet_manager",
-      "accountant",
-    ],
-
-    children: [
-      {
-        label: "Drivers",
-        roles: [
-          "owner",
-          "admin",
-          "dispatcher",
-          "fleet_manager",
-        ],
-      },
-      {
-        label:
-          "Settlements",
-        roles: [
-          "owner",
-          "admin",
-          "accountant",
-        ],
-      },
-    ],
-  },
-
-  {
-    label: "Finance",
-    icon:
-      "M4 6h16M8 20h8M12 6v14",
-
-    roles: [
-      "owner",
-      "admin",
-      "accountant",
-      "dispatcher",
-    ],
-
-    children: [
-      {
-        label: "Expenses",
-        roles: [
-          "owner",
-          "admin",
-          "accountant",
-        ],
-      },
-      {
-        label: "Invoices",
-        roles: [
-          "owner",
-          "admin",
-          "accountant",
-          "dispatcher",
-        ],
-      },
-    ],
-  },
-
-  {
-    label: "Documents",
-    icon:
-      "M6 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
-
-    roles:
-      ALL_MANAGEMENT_ROLES,
-  },
-
-  {
-    label: "Team",
-    icon:
-      "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
-
-    roles: OWNER_ADMIN,
-  },
-
-  {
-    label: "Billing",
-    icon: "M4 6h16v12H4z M4 10h16 M8 15h4",
-    roles: OWNER_ADMIN,
-  },
-
-  {
-    label: "Settings",
-    icon:
-      "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.6 4a5.96 5.96 0 0 0-.28-1.46l2.1-1.64-2.5-4.33-2.5 1a6.02 6.02 0 0 0-1.74-1L13.5 2h-5l-.68 2.56a6.02 6.02 0 0 0-1.74 1l-2.5-1-2.5 4.33 2.1 1.64A5.96 5.96 0 0 0 3.4 12a5.96 5.96 0 0 0 .28 1.46l-2.1 1.64 2.5 4.33 2.5-1a6.02 6.02 0 0 0 1.74 1L8.5 22h5l.68-2.56a6.02 6.02 0 0 0 1.74 1l2.5 1 2.5-4.33-2.1-1.64c.18-.46.28-.95.28-1.46z",
-
-    roles: OWNER_ADMIN,
-  },
-
-  {
-    label: "My Account",
-    icon:
-      "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21a8 8 0 0 1 16 0",
-
-    roles: ALL_MANAGEMENT_ROLES,
-  },
-];
+/* ============================================================
+   TYPES
+============================================================ */
 
 type TruckProfitability = {
   truckId: string;
@@ -234,9 +35,7 @@ type RecentInvoice = {
   amount: number;
   paidAmount: number;
   balance: number;
-  dueDate:
-    | string
-    | null;
+  dueDate: string | null;
   status: string;
 };
 
@@ -247,13 +46,9 @@ type RecentLoad = {
   driver: string;
   truck: string;
   pickup: string;
-  pickupDate:
-    | string
-    | null;
+  pickupDate: string | null;
   delivery: string;
-  deliveryDate:
-    | string
-    | null;
+  deliveryDate: string | null;
   revenue: number;
   status: string;
 };
@@ -285,156 +80,31 @@ type DashboardData = {
   overdueReceivables: number;
   dueThisWeek: number;
 
-  recentInvoices:
-    RecentInvoice[];
-
-  truckProfitability:
-    TruckProfitability[];
-
-  recentLoads:
-    RecentLoad[];
+  recentInvoices: RecentInvoice[];
+  recentLoads: RecentLoad[];
+  truckProfitability: TruckProfitability[];
 };
 
-type NumericKpiKey =
-  | "totalRevenue"
-  | "driverPayroll"
-  | "operatingExpenses"
-  | "netProfit"
-  | "dispatcherWeeklyRevenue"
-  | "dispatcherMonthlyRevenue";
-
-type KpiCard = {
-  title: string;
-  dataKey: NumericKpiKey;
-  trendLabel: string;
-  color: string;
-  icon: string;
-};
-
-const fullFinanceKpiCards: KpiCard[] = [
-  {
-    title: "Total Revenue",
-    dataKey: "totalRevenue",
-    trendLabel: "Current data",
-    color: "text-emerald-600",
-    icon: "M5 12h14M5 18h14M9 6h6",
-  },
-  {
-    title: "Driver Payroll",
-    dataKey: "driverPayroll",
-    trendLabel: "Current data",
-    color: "text-emerald-600",
-    icon: "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm-6 14v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2",
-  },
-  {
-    title: "Operating Expenses",
-    dataKey: "operatingExpenses",
-    trendLabel: "Current data",
-    color: "text-amber-600",
-    icon: "M4 6h16M4 10h16M4 14h10",
-  },
-  {
-    title: "Net Profit",
-    dataKey: "netProfit",
-    trendLabel: "Current data",
-    color: "text-emerald-600",
-    icon: "M5 12l5 5 9-10",
-  },
-];
-
-const dispatcherKpiCards: KpiCard[] = [
-  {
-    title: "Total Revenue Weekly",
-    dataKey: "dispatcherWeeklyRevenue",
-    trendLabel: "Pickup dates Monday through Sunday",
-    color: "text-emerald-600",
-    icon: "M5 12h14M5 18h14M9 6h6",
-  },
-  {
-    title: "Total Revenue Monthly",
-    dataKey: "dispatcherMonthlyRevenue",
-    trendLabel: "Pickup dates in the current calendar month",
-    color: "text-emerald-600",
-    icon: "M4 6h16M4 12h16M4 18h16",
-  },
-];
-
-const quickActionsByRole: Record<
-  Role,
-  string[]
-> = {
-  owner: [
-    "+ Add Load",
-    "+ Add Driver",
-    "+ Add Truck",
-    "+ Add Expense",
-  ],
-
-  admin: [
-    "+ Add Load",
-    "+ Add Driver",
-    "+ Add Truck",
-    "+ Add Expense",
-  ],
-
-  dispatcher: [
-    "+ Add Load",
-  ],
-
-  fleet_manager: [
-    "+ Add Driver",
-    "+ Add Truck",
-  ],
-
-  accountant: [
-    "+ Add Expense",
-  ],
-
-  driver: [],
-};
+/* ============================================================
+   PAGE
+============================================================ */
 
 export default function Home() {
-  const router =
-    useRouter();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const pathname =
-    usePathname();
+  const supabase = useMemo(() => createClient(), []);
 
-  const supabase =
-    createClient();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [checkingRole, setCheckingRole] = useState(true);
 
-  const [
-    loggingOut,
-    setLoggingOut,
-  ] = useState(false);
+  const [authContext, setAuthContext] =
+    useState<AuthRoleContext | null>(null);
 
-  const [
-    authContext,
-    setAuthContext,
-  ] =
-    useState<AuthRoleContext | null>(
-      null
-    );
+  const [userFullName, setUserFullName] = useState("");
+  const [companyName, setCompanyName] = useState("");
 
-  const [
-    checkingRole,
-    setCheckingRole,
-  ] = useState(true);
-
-  const [
-    userFullName,
-    setUserFullName,
-  ] = useState("");
-
-  const [
-    companyName,
-    setCompanyName,
-  ] = useState("");
-
-  const [
-    dashboardData,
-    setDashboardData,
-  ] =
+  const [dashboardData, setDashboardData] =
     useState<DashboardData>({
       activeTrucks: 0,
       availableTrucks: 0,
@@ -467,183 +137,62 @@ export default function Home() {
       truckProfitability: [],
     });
 
-  const visibleNavItems =
-    authContext
-      ? navItems
-          .filter(
-            (item) =>
-              item.roles.includes(
-                authContext.role
-              )
-          )
-          .map(
-            (item) => ({
-              ...item,
+  /* ============================================================
+     ROLE HELPERS
+  ============================================================ */
 
-              children:
-                item.children?.filter(
-                  (
-                    child
-                  ) =>
-                    child.roles.includes(
-                      authContext.role
-                    )
-                ),
-            })
-          )
-      : [];
-
-  const visibleQuickActions =
-    authContext
-      ? quickActionsByRole[
-          authContext.role
-        ]
-      : [];
-
-  const isDispatcher =
-    authContext?.role ===
-    "dispatcher";
-
-  const isAccountant =
-    authContext?.role ===
-    "accountant";
+  const isDispatcher = authContext?.role === "dispatcher";
+  const isAccountant = authContext?.role === "accountant";
 
   const canViewFullFinancialDashboard =
-    authContext?.role ===
-      "owner" ||
-    authContext?.role ===
-      "admin" ||
-    authContext?.role ===
-      "accountant";
+    authContext?.role === "owner" ||
+    authContext?.role === "admin" ||
+    authContext?.role === "accountant";
 
-  const visibleKpiCards =
-    isDispatcher
-      ? dispatcherKpiCards
-      : canViewFullFinancialDashboard
-        ? fullFinanceKpiCards
-        : [];
+  const canViewFleet =
+    authContext?.role === "owner" ||
+    authContext?.role === "admin" ||
+    authContext?.role === "dispatcher" ||
+    authContext?.role === "fleet_manager";
 
-  function formatCurrency(
-    value: number
-  ) {
-    return new Intl.NumberFormat(
-      "en-US",
-      {
-        style:
-          "currency",
-        currency:
-          "USD",
-        maximumFractionDigits: 0,
-      }
-    ).format(value);
+  /* ============================================================
+     FORMATTERS
+  ============================================================ */
+
+  function formatCurrency(value: number) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(value || 0);
   }
 
-  function navigate(
-    path:
-      | string
-      | undefined
-  ) {
-    if (!path) {
-      return;
+  function formatDate(value: string | null) {
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
     }
 
-    router.push(path);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
   }
 
-  function getRouteForLabel(
-    label: string
-  ) {
-    switch (
-      label.toLowerCase()
-    ) {
-      case "dashboard":
-        return "/";
-
-      case "loads":
-        return "/loads";
-
-      case "drivers":
-        return "/drivers";
-
-      case "trucks":
-        return "/trucks";
-
-      case "trailers":
-        return "/trailers";
-
-      case "maintenance":
-        return "/maintenance";
-
-      case "expenses":
-        return "/expenses";
-
-      case "payroll":
-      case "settlements":
-        return "/payroll";
-
-      case "invoices":
-        return "/invoices";
-
-      case "documents":
-        return "/documents";
-
-      case "team":
-        return "/team";
-
-      case "billing":
-        return "/billing";
-
-      case "settings":
-        return "/settings";
-
-      case "my account":
-        return "/account";
-
-      default:
-        return undefined;
-    }
+ function navigate(path: string | undefined) {
+  if (!path) {
+    return;
   }
 
-  function getQuickActionRoute(
-    action: string
-  ) {
-    const normalized =
-      action.toLowerCase();
+  router.push(path);
+}
 
-    if (
-      normalized.includes(
-        "load"
-      )
-    ) {
-      return "/loads";
-    }
-
-    if (
-      normalized.includes(
-        "driver"
-      )
-    ) {
-      return "/drivers";
-    }
-
-    if (
-      normalized.includes(
-        "truck"
-      )
-    ) {
-      return "/trucks";
-    }
-
-    if (
-      normalized.includes(
-        "expense"
-      )
-    ) {
-      return "/expenses";
-    }
-
-    return undefined;
-  }
+  /* ============================================================
+     LOGOUT
+  ============================================================ */
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -651,184 +200,122 @@ export default function Home() {
     try {
       await supabase.auth.signOut();
 
-      router.replace(
-        "/login"
-      );
-
+      router.replace("/login");
       router.refresh();
-    } catch (err) {
-      console.error(
-        "Logout failed",
-        err
-      );
-
+    } catch (error) {
+      console.error("Logout failed:", error);
       setLoggingOut(false);
     }
   }
 
-  const deliveryTotal =
-    dashboardData.activeLoads +
-    dashboardData.deliveredLoads;
-
-  const deliveryPercent =
-    deliveryTotal > 0
-      ? Math.round(
-          (dashboardData.deliveredLoads /
-            deliveryTotal) *
-            100
-        )
-      : null;
+  /* ============================================================
+     LOAD DASHBOARD
+  ============================================================ */
 
   useEffect(() => {
     let mounted = true;
 
     async function initializeDashboard() {
       try {
-        const auth =
-          await getAuthRole(
-            supabase
-          );
+        const auth = await getAuthRole(supabase);
 
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         if (!auth) {
-          router.replace(
-            "/login"
-          );
-
+          router.replace("/login");
           return;
         }
 
-        if (
-          auth.role ===
-          "driver"
-        ) {
-          router.replace(
-            "/driver"
-          );
-
+        if (auth.role === "driver") {
+          router.replace("/driver");
           return;
         }
 
         setAuthContext(auth);
 
-        // ====================================================
-        // LOAD REAL USER + COMPANY IDENTITY
-        // ====================================================
-
-        const [
-          profileResult,
-          companyResult,
-        ] =
+        const [profileResult, companyResult] =
           await Promise.all([
             supabase
-              .from(
-                "profiles"
-              )
-              .select(
-                "full_name"
-              )
-              .eq(
-                "id",
-                auth.userId
-              )
+              .from("profiles")
+              .select("full_name")
+              .eq("id", auth.userId)
               .maybeSingle(),
 
             supabase
-              .from(
-                "companies"
-              )
-              .select(
-                "name"
-              )
-              .eq(
-                "id",
-                auth.companyId
-              )
+              .from("companies")
+              .select("name")
+              .eq("id", auth.companyId)
               .maybeSingle(),
           ]);
 
-        if (
-          profileResult.error
-        ) {
+        if (profileResult.error) {
           console.error(
             "Unable to load profile:",
             profileResult.error
           );
         }
 
-        if (
-          companyResult.error
-        ) {
+        if (companyResult.error) {
           console.error(
             "Unable to load company:",
             companyResult.error
           );
         }
 
-        if (mounted) {
-          setUserFullName(
-            profileResult
-              .data
-              ?.full_name
-              ?.trim() ||
-              auth.email ||
-              "FleetOS User"
-          );
+        if (!mounted) return;
 
-          setCompanyName(
-            companyResult
-              .data
-              ?.name
-              ?.trim() ||
-              "FleetOS"
-          );
-        }
-
-        // ====================================================
-        // LOAD DASHBOARD METRICS
-        // ====================================================
-
-        const res =
-          await fetch(
-            "/api/dashboard",
-            {
-              cache:
-                "no-store",
-            }
-          );
-
-        if (!res.ok) {
-          console.error(
-            "Failed to fetch dashboard",
-            res.status
-          );
-
-          return;
-        }
-
-        const data =
-          await res.json();
-
-        if (!mounted) {
-          return;
-        }
-
-        setDashboardData(
-          data
+        setUserFullName(
+          profileResult.data?.full_name?.trim() ||
+            auth.email ||
+            "FleetOS User"
         );
-      } catch (err) {
+
+        setCompanyName(
+          companyResult.data?.name?.trim() || "FleetOS"
+        );
+
+        const response = await fetch("/api/dashboard", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          console.error(
+            "Failed to fetch dashboard:",
+            response.status
+          );
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!mounted) return;
+
+        setDashboardData((previous) => ({
+          ...previous,
+          ...data,
+
+          recentInvoices: Array.isArray(data.recentInvoices)
+            ? data.recentInvoices
+            : [],
+
+          recentLoads: Array.isArray(data.recentLoads)
+            ? data.recentLoads
+            : [],
+
+          truckProfitability: Array.isArray(
+            data.truckProfitability
+          )
+            ? data.truckProfitability
+            : [],
+        }));
+      } catch (error) {
         console.error(
-          "Error initializing FleetOS dashboard",
-          err
+          "Error initializing FleetOS dashboard:",
+          error
         );
       } finally {
         if (mounted) {
-          setCheckingRole(
-            false
-          );
+          setCheckingRole(false);
         }
       }
     }
@@ -838,29 +325,97 @@ export default function Home() {
     return () => {
       mounted = false;
     };
+  }, [router, supabase]);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /* ============================================================
+     DERIVED DASHBOARD VALUES
+  ============================================================ */
+
+  const firstName =
+    userFullName.trim().split(/\s+/)[0] || "there";
+
+  const totalLoadStatus =
+    dashboardData.activeLoads +
+    dashboardData.deliveredLoads +
+    dashboardData.awaitingPod +
+    dashboardData.invoicedLoads;
+
+  const deliveredPercent =
+    totalLoadStatus > 0
+      ? Math.round(
+          (dashboardData.deliveredLoads /
+            totalLoadStatus) *
+            100
+        )
+      : 0;
+
+  const activePercent =
+    totalLoadStatus > 0
+      ? Math.round(
+          (dashboardData.activeLoads /
+            totalLoadStatus) *
+            100
+        )
+      : 0;
+
+  const podPercent =
+    totalLoadStatus > 0
+      ? Math.round(
+          (dashboardData.awaitingPod /
+            totalLoadStatus) *
+            100
+        )
+      : 0;
+
+  const invoicedPercent =
+    totalLoadStatus > 0
+      ? Math.max(
+          0,
+          100 -
+            deliveredPercent -
+            activePercent -
+            podPercent
+        )
+      : 0;
+
+  const financialMaximum = Math.max(
+    dashboardData.totalRevenue,
+    dashboardData.driverPayroll,
+    dashboardData.operatingExpenses,
+    Math.abs(dashboardData.netProfit),
+    1
+  );
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   if (checkingRole) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#07111f] text-white">
         <div className="text-center">
-          <div className="flex justify-center">
-            <FleetOSBrand variant="sidebar" />
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-950/30">
+            <span className="text-xl font-bold">F</span>
           </div>
 
-          <p className="mt-5 text-lg font-semibold">
-            Loading your
-            portal...
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.32em] text-slate-500">
+            FleetOS
+          </p>
+
+          <p className="mt-2 text-lg font-semibold">
+            Loading your command center...
           </p>
         </div>
       </div>
     );
   }
 
+  /* ============================================================
+     DASHBOARD
+  ============================================================ */
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
       <div className="relative lg:flex lg:items-stretch">
         <FleetOSShell
           companyName={companyName}
@@ -872,945 +427,830 @@ export default function Home() {
           onLogout={handleLogout}
         />
 
-        {/* ================================================
-            MAIN DASHBOARD
-        ================================================ */}
+        <main className="min-w-0 flex-1 bg-[#f4f7fb]">
+          {/* ==================================================
+              TOP COMMAND BAR
+          ================================================== */}
 
-        <main className="flex-1 bg-slate-50 px-4 py-5 sm:px-6 lg:px-10 lg:py-10">
-          <div className="mx-auto max-w-7xl">
-            {/* HEADER */}
-
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                  Dashboard
-                </p>
-
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-                  Overview of
-                  your fleet
-                  operations
-                </h1>
-
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                  {isDispatcher
-                    ? "Operational performance and pickup-based revenue for your current week and month."
-                    : isAccountant
-                      ? "Financial overview, receivables, expenses, payroll, and profitability."
-                      : canViewFullFinancialDashboard
-                        ? "Overview of your fleet operations and financial performance."
-                        : "Overview of your fleet operations and equipment readiness."}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="flex w-full items-center rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:max-w-xs">
+          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+            <div className="flex min-h-[74px] items-center gap-4 px-4 sm:px-6 lg:px-8">
+              <div className="hidden min-w-0 flex-1 md:block">
+                <div className="relative max-w-xl">
                   <svg
                     viewBox="0 0 24 24"
-                    className="h-5 w-5 text-slate-400"
+                    fill="none"
+                    className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
                   >
+                    <circle cx="11" cy="11" r="7" />
                     <path
-                      d="M21 21l-4.35-4.35m1.1-4.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                      d="m20 20-3.5-3.5"
                       strokeLinecap="round"
-                      strokeLinejoin="round"
                     />
                   </svg>
 
                   <input
                     type="search"
-                    placeholder="Search operations"
-                    className="ml-3 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                    placeholder="Search loads, drivers, trucks, invoices..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                   />
                 </div>
+              </div>
 
+              <div className="ml-auto flex items-center gap-3">
                 <button
                   type="button"
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-slate-700 shadow-sm transition hover:border-slate-300"
                   aria-label="Notifications"
+                  className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
                 >
                   <svg
                     viewBox="0 0 24 24"
+                    fill="none"
                     className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
                   >
                     <path
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6 6 0 1 0-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 1 1-6 0h6Z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
+                      d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M10 21h4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+
+                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/account")}
+                  className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-slate-50"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-sm font-bold text-white shadow-sm">
+                    {(userFullName || "U")
+                      .charAt(0)
+                      .toUpperCase()}
+                  </span>
+
+                  <span className="hidden text-left sm:block">
+                    <span className="block max-w-[170px] truncate text-sm font-semibold text-slate-900">
+                      {userFullName || "FleetOS User"}
+                    </span>
+
+                    <span className="block text-xs text-slate-500">
+                      {roleLabel(authContext?.role)}
+                    </span>
+                  </span>
+
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="hidden h-4 w-4 text-slate-400 sm:block"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      d="m6 9 6 6 6-6"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                   </svg>
                 </button>
+              </div>
+            </div>
+          </header>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/account"
-                    )
-                  }
-                  className="inline-flex items-center gap-3 rounded-2xl bg-slate-950 px-4 py-2 text-white shadow-sm transition hover:bg-slate-800"
-                >
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-sky-400">
-                    {(userFullName ||
-                      "U")
-                      .charAt(0)
-                      .toUpperCase()}
-                  </span>
+          <div className="mx-auto max-w-[1600px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+            {/* ==================================================
+                HERO
+            ================================================== */}
 
-                  <span className="text-left">
-                    <span className="block max-w-40 truncate text-sm font-medium">
-                      {userFullName ||
-                        "FleetOS User"}
-                    </span>
+            <section className="relative min-h-[330px] overflow-hidden rounded-[28px] bg-[#07172b] shadow-[0_18px_50px_rgba(15,23,42,0.14)] sm:min-h-[360px]">
+              <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                  backgroundImage:
+                    "url('/branding/fleetos-dashboard-hero.png')",
+                }}
+              />
 
-                    <span className="block text-xs text-slate-400">
-                      {roleLabel(
-                        authContext?.role
-                      )}
-                    </span>
-                  </span>
-                </button>
+              <div className="absolute inset-0 bg-gradient-to-r from-[#061426]/95 via-[#07182c]/72 to-[#07182c]/10" />
+
+              <div className="absolute inset-0 bg-gradient-to-t from-[#071426]/60 via-transparent to-transparent" />
+
+              <div className="relative z-10 flex min-h-[330px] max-w-3xl flex-col justify-center px-6 pb-24 pt-10 sm:min-h-[360px] sm:px-10 lg:px-14">
+                <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-blue-100 backdrop-blur-md">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  Fleet command center
+                </div>
+
+                <h1 className="max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-[46px] lg:leading-[1.08]">
+                  Welcome back, {firstName}
+                </h1>
+
+                <p className="mt-4 max-w-xl text-base leading-7 text-slate-200 sm:text-lg">
+                  Manage your fleet. Move your business forward.
+                </p>
+
+                <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
+                  {isDispatcher
+                    ? "Stay on top of active loads, deliveries, drivers, and dispatch revenue."
+                    : isAccountant
+                      ? "Track revenue, expenses, receivables, payroll, and fleet profitability."
+                      : canViewFullFinancialDashboard
+                        ? "Your live operations and financial performance are together in one place."
+                        : "Monitor fleet readiness, drivers, equipment, and daily operations."}
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  {!isAccountant ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/loads")}
+                      className="inline-flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-500"
+                    >
+                      View Loads
+
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="h-4 w-4"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          d="M5 12h14M13 6l6 6-6 6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  ) : null}
+
+                  {canViewFullFinancialDashboard ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/invoices")}
+                      className="inline-flex h-11 items-center rounded-xl border border-white/20 bg-white/10 px-5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
+                    >
+                      View Finance
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+
+            {/* ==================================================
+                OVERLAPPING KPI CARDS
+            ================================================== */}
+
+            <section className="relative z-10 -mt-16 grid gap-4 px-2 sm:grid-cols-2 lg:grid-cols-4 lg:px-6">
+              <DashboardKpiCard
+                title="Active Trucks"
+                value={String(dashboardData.activeTrucks)}
+                subtitle={`${dashboardData.availableTrucks} available`}
+                tone="blue"
+                icon="truck"
+              />
+
+              <DashboardKpiCard
+                title="Active Loads"
+                value={String(dashboardData.activeLoads)}
+                subtitle={`${dashboardData.awaitingPod} awaiting POD`}
+                tone="cyan"
+                icon="load"
+              />
+
+              <DashboardKpiCard
+                title="Delivered"
+                value={String(dashboardData.deliveredLoads)}
+                subtitle="Completed loads"
+                tone="green"
+                icon="check"
+              />
+
+              <DashboardKpiCard
+                title={
+                  isDispatcher
+                    ? "Monthly Revenue"
+                    : canViewFullFinancialDashboard
+                      ? "Total Revenue"
+                      : "Fleet Ready"
+                }
+                value={
+                  isDispatcher
+                    ? formatCurrency(
+                        dashboardData.dispatcherMonthlyRevenue
+                      )
+                    : canViewFullFinancialDashboard
+                      ? formatCurrency(
+                          dashboardData.totalRevenue
+                        )
+                      : String(
+                          dashboardData.activeTrucks +
+                            dashboardData.availableTrucks
+                        )
+                }
+                subtitle={
+                  isDispatcher
+                    ? "Pickup-based revenue"
+                    : canViewFullFinancialDashboard
+                      ? "Current financial data"
+                      : "Active + available"
+                }
+                tone="purple"
+                icon="revenue"
+              />
+            </section>
+
+            {/* ==================================================
+                MAIN CONTENT GRID
+            ================================================== */}
+
+            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.65fr)]">
+              {/* ==================================================
+                  RECENT LOADS
+              ================================================== */}
+
+              {!isAccountant ? (
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-5 sm:px-6">
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Recent Loads
+                      </h2>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        Latest fleet activity and load status
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate("/loads")}
+                      className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+                    >
+                      View All
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          <th className="px-5 py-4 sm:px-6">
+                            Load
+                          </th>
+
+                          <th className="px-5 py-4">
+                            Driver / Truck
+                          </th>
+
+                          <th className="px-5 py-4">
+                            Route
+                          </th>
+
+                          <th className="px-5 py-4">
+                            Rate
+                          </th>
+
+                          <th className="px-5 py-4">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-slate-100">
+                        {dashboardData.recentLoads.length > 0 ? (
+                          dashboardData.recentLoads
+                            .slice(0, 6)
+                            .map((load) => (
+                              <tr
+                                key={load.id}
+                                className="transition hover:bg-slate-50/80"
+                              >
+                                <td className="px-5 py-4 sm:px-6">
+                                  <div className="font-semibold text-slate-900">
+                                    {load.loadNumber}
+                                  </div>
+
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {load.broker || "—"}
+                                  </div>
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  <div className="font-medium text-slate-800">
+                                    {load.driver || "Unassigned"}
+                                  </div>
+
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    Truck {load.truck || "—"}
+                                  </div>
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  <div className="max-w-[230px]">
+                                    <div className="truncate font-medium text-slate-800">
+                                      {load.pickup || "—"}
+                                    </div>
+
+                                    <div className="my-1 flex items-center gap-2 text-xs text-slate-400">
+                                      <span>
+                                        {formatDate(
+                                          load.pickupDate
+                                        )}
+                                      </span>
+
+                                      <span>→</span>
+
+                                      <span>
+                                        {formatDate(
+                                          load.deliveryDate
+                                        )}
+                                      </span>
+                                    </div>
+
+                                    <div className="truncate text-xs text-slate-500">
+                                      {load.delivery || "—"}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="px-5 py-4 font-semibold text-slate-900">
+                                  {formatCurrency(
+                                    load.revenue
+                                  )}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  <LoadStatusBadge
+                                    status={load.status}
+                                  />
+                                </td>
+                              </tr>
+                            ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={5}
+                              className="px-6 py-16 text-center"
+                            >
+                              <EmptyState
+                                title="No recent loads"
+                                description="New load activity will appear here."
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : (
+                <ReceivablesPanel
+                  data={dashboardData}
+                  formatCurrency={formatCurrency}
+                  navigate={navigate}
+                />
+              )}
+
+              {/* ==================================================
+                  RIGHT COLUMN
+              ================================================== */}
+
+              <div className="grid gap-6">
+                {/* LOAD STATUS */}
+
+                {!isAccountant ? (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                          Load Status
+                        </h2>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          Current operations
+                        </p>
+                      </div>
+
+                      <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600">
+                        Live
+                      </span>
+                    </div>
+
+                    <div className="mt-6 flex items-center justify-center">
+                      <div
+                        className="relative flex h-44 w-44 items-center justify-center rounded-full"
+                        style={{
+                          background:
+                            totalLoadStatus > 0
+                              ? `conic-gradient(
+                                  #2563eb 0% ${activePercent}%,
+                                  #10b981 ${activePercent}% ${
+                                    activePercent +
+                                    deliveredPercent
+                                  }%,
+                                  #f59e0b ${
+                                    activePercent +
+                                    deliveredPercent
+                                  }% ${
+                                    activePercent +
+                                    deliveredPercent +
+                                    podPercent
+                                  }%,
+                                  #8b5cf6 ${
+                                    activePercent +
+                                    deliveredPercent +
+                                    podPercent
+                                  }% 100%
+                                )`
+                              : "#e2e8f0",
+                        }}
+                      >
+                        <div className="flex h-[118px] w-[118px] flex-col items-center justify-center rounded-full bg-white shadow-inner">
+                          <span className="text-3xl font-bold text-slate-900">
+                            {totalLoadStatus}
+                          </span>
+
+                          <span className="mt-1 text-xs font-medium text-slate-500">
+                            Total Loads
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-3">
+                      <StatusLegend
+                        color="bg-blue-600"
+                        label="Active"
+                        value={dashboardData.activeLoads}
+                      />
+
+                      <StatusLegend
+                        color="bg-emerald-500"
+                        label="Delivered"
+                        value={dashboardData.deliveredLoads}
+                      />
+
+                      <StatusLegend
+                        color="bg-amber-500"
+                        label="Awaiting POD"
+                        value={dashboardData.awaitingPod}
+                      />
+
+                      <StatusLegend
+                        color="bg-violet-500"
+                        label="Invoiced"
+                        value={dashboardData.invoicedLoads}
+                      />
+                    </div>
+                  </section>
+                ) : null}
+
+                {/* FLEET STATUS */}
+
+                {canViewFleet ? (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                          Fleet Status
+                        </h2>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          Vehicle readiness
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate("/trucks")}
+                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                      >
+                        Fleet
+                      </button>
+                    </div>
+
+                    <div className="mt-5 space-y-3">
+                      <FleetStatusRow
+                        label="Active"
+                        value={dashboardData.activeTrucks}
+                        dotClass="bg-emerald-500"
+                      />
+
+                      <FleetStatusRow
+                        label="Available"
+                        value={dashboardData.availableTrucks}
+                        dotClass="bg-blue-500"
+                      />
+
+                      <FleetStatusRow
+                        label="Maintenance"
+                        value={dashboardData.maintenanceTrucks}
+                        dotClass="bg-amber-500"
+                      />
+
+                      <FleetStatusRow
+                        label="Inactive"
+                        value={dashboardData.inactiveTrucks}
+                        dotClass="bg-slate-400"
+                      />
+                    </div>
+                  </section>
+                ) : null}
               </div>
             </div>
 
-            {/* KPI CARDS */}
+            {/* ==================================================
+                SECOND ROW
+            ================================================== */}
 
-            {visibleKpiCards.length > 0 ? (
-            <section className="mt-8 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-              {visibleKpiCards.map(
-                (card) => (
-                  <article
-                    key={
-                      card.title
-                    }
-                    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-slate-500">
-                          {
-                            card.title
-                          }
-                        </p>
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              {/* FINANCIAL OVERVIEW */}
 
-                        <p className="mt-3 text-3xl font-semibold text-slate-950">
-                          {formatCurrency(
-                            dashboardData[
-                              card
-                                .dataKey
-                            ] ?? 0
-                          )}
-                        </p>
-                      </div>
+              {canViewFullFinancialDashboard ? (
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Revenue Overview
+                      </h2>
 
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
-                        <svg
-                          viewBox="0 0 24 24"
-                          className="h-6 w-6"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path
-                            d={
-                              card.icon
-                            }
-                          />
-                        </svg>
-                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Revenue, payroll, expenses and profit
+                      </p>
                     </div>
 
-                    <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
-                      <span
-                        className={`${card.color} font-semibold`}
-                      />
-
-                      <span>
-                        {
-                          card.trendLabel
-                        }
-                      </span>
-                    </div>
-                  </article>
-                )
-              )}
-            </section>
-            ) : null}
-
-            {/* LOAD OVERVIEW + FLEET STATUS */}
-
-            {!isAccountant ? (
-            <div className="mt-8 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
-                      Load Overview
-                    </p>
-
-                    <p className="mt-2 text-2xl font-semibold text-slate-950">
-                      Operational
-                      snapshot
-                    </p>
-                  </div>
-
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                    Updated today
-                  </span>
-                </div>
-
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  {[
-                    {
-                      label:
-                        "Active Loads",
-
-                      value:
-                        dashboardData.activeLoads,
-                    },
-
-                    {
-                      label:
-                        "Delivered",
-
-                      value:
-                        dashboardData.deliveredLoads,
-                    },
-
-                    {
-                      label:
-                        "Awaiting POD",
-
-                      value:
-                        dashboardData.awaitingPod,
-                    },
-
-                    {
-                      label:
-                        "Invoiced",
-
-                      value:
-                        dashboardData.invoicedLoads,
-                    },
-                  ].map(
-                    (item) => (
-                      <div
-                        key={
-                          item.label
-                        }
-                        className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
-                      >
-                        <p className="text-sm text-slate-500">
-                          {
-                            item.label
-                          }
-                        </p>
-
-                        <p className="mt-3 text-3xl font-semibold text-slate-950">
-                          {
-                            item.value
-                          }
-                        </p>
-                      </div>
-                    )
-                  )}
-                </div>
-
-                <div className="mt-6 rounded-3xl bg-slate-100 p-4">
-                  <div className="flex items-center justify-between text-sm text-slate-500">
-                    <span>
-                      Delivery
-                      progress
-                    </span>
-
-                    <span>
-                      {deliveryPercent !==
-                      null
-                        ? `${deliveryPercent}%`
-                        : "—"}
+                    <span className="w-fit rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                      Current Data
                     </span>
                   </div>
 
-                  <div className="mt-3 grid gap-3">
-                    <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-sky-500"
-                        style={{
-                          width: `${
-                            deliveryPercent ??
-                            0
-                          }%`,
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>
-                        Planned
-                      </span>
-
-                      <span>
-                        On track
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
-                      Fleet Status
-                    </p>
-
-                    <p className="mt-2 text-2xl font-semibold text-slate-950">
-                      Vehicle
-                      readiness
-                    </p>
-                  </div>
-
-                  <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
-                    Last 24h
-                  </div>
-                </div>
-
-                <div className="mt-6 grid gap-4">
-                  {[
-                    {
-                      label:
-                        "Active Trucks",
-
-                      value:
-                        dashboardData.activeTrucks,
-
-                      status:
-                        "bg-emerald-100 text-emerald-700",
-                    },
-
-                    {
-                      label:
-                        "Available",
-
-                      value:
-                        dashboardData.availableTrucks,
-
-                      status:
-                        "bg-sky-100 text-sky-700",
-                    },
-
-                    {
-                      label:
-                        "Maintenance",
-
-                      value:
-                        dashboardData.maintenanceTrucks,
-
-                      status:
-                        "bg-amber-100 text-amber-700",
-                    },
-
-                    {
-                      label:
-                        "Inactive",
-
-                      value:
-                        dashboardData.inactiveTrucks,
-
-                      status:
-                        "bg-slate-100 text-slate-700",
-                    },
-                  ].map(
-                    (item) => (
-                      <div
-                        key={
-                          item.label
-                        }
-                        className="flex items-center justify-between rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4"
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-slate-500">
-                            {
-                              item.label
-                            }
-                          </p>
-
-                          <p className="mt-2 text-2xl font-semibold text-slate-950">
-                            {
-                              item.value
-                            }
-                          </p>
-                        </div>
-
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${item.status}`}
-                        >
-                          {item.label ===
-                          "Maintenance"
-                            ? "Review"
-                            : "Ready"}
-                        </span>
-                      </div>
-                    )
-                  )}
-                </div>
-              </section>
-            </div>
-            ) : null}
-
-            {/* RECEIVABLES + PROFITABILITY */}
-
-            {canViewFullFinancialDashboard ? (
-            <div className="mt-8 grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
-                      Accounts
-                      Receivable
-                    </p>
-
-                    <p className="mt-2 text-xl font-semibold text-slate-950">
-                      Outstanding
-                      payments
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(
-                        "/invoices"
-                      )
-                    }
-                    className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    Review invoices
-                  </button>
-                </div>
-
-                <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                  {[
-                    {
-                      label:
-                        "Outstanding",
-
-                      value:
-                        formatCurrency(
-                          dashboardData.outstandingReceivables
-                        ),
-                    },
-
-                    {
-                      label:
-                        "Overdue",
-
-                      value:
-                        formatCurrency(
-                          dashboardData.overdueReceivables
-                        ),
-                    },
-
-                    {
-                      label:
-                        "Due This Week",
-
-                      value:
-                        formatCurrency(
-                          dashboardData.dueThisWeek
-                        ),
-                    },
-                  ].map(
-                    (item) => (
-                      <div
-                        key={
-                          item.label
-                        }
-                        className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
-                      >
-                        <p className="text-sm text-slate-500">
-                          {
-                            item.label
-                          }
-                        </p>
-
-                        <p className="mt-3 text-2xl font-semibold text-slate-950">
-                          {
-                            item.value
-                          }
-                        </p>
-                      </div>
-                    )
-                  )}
-                </div>
-
-                <div className="mt-6 overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-slate-200 text-slate-500">
-                      <tr>
-                        <th className="py-3 pr-6">
-                          Broker
-                        </th>
-
-                        <th className="py-3 pr-6">
-                          Invoice
-                        </th>
-
-                        <th className="py-3 pr-6">
-                          Amount
-                        </th>
-
-                        <th className="py-3 pr-6">
-                          Due Date
-                        </th>
-
-                        <th className="py-3">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-200 text-slate-700">
-                      {dashboardData
-                        .recentInvoices
-                        .length >
-                      0 ? (
-                        dashboardData.recentInvoices.map(
-                          (
-                            inv
-                          ) => (
-                            <tr
-                              key={
-                                inv.id
-                              }
-                            >
-                              <td className="py-4 pr-6 font-medium">
-                                {
-                                  inv.broker
-                                }
-                              </td>
-
-                              <td className="py-4 pr-6">
-                                {
-                                  inv.invoiceNumber
-                                }
-                              </td>
-
-                              <td className="py-4 pr-6">
-                                {formatCurrency(
-                                  inv.amount
-                                )}
-                              </td>
-
-                              <td className="py-4 pr-6">
-                                {inv.dueDate
-                                  ? new Date(
-                                      inv.dueDate
-                                    ).toLocaleDateString()
-                                  : "—"}
-                              </td>
-
-                              <td className="py-4">
-                                <InvoiceStatusBadge
-                                  status={
-                                    inv.status
-                                  }
-                                />
-                              </td>
-                            </tr>
-                          )
-                        )
-                      ) : (
-                        <tr>
-                          <td
-                            colSpan={
-                              5
-                            }
-                            className="py-12 text-center text-slate-500"
-                          >
-                            No recent
-                            invoices.
-                          </td>
-                        </tr>
+                  <div className="mt-8 grid h-[230px] grid-cols-4 items-end gap-4 sm:gap-7">
+                    <FinancialBar
+                      label="Revenue"
+                      value={dashboardData.totalRevenue}
+                      maximum={financialMaximum}
+                      barClass="bg-blue-600"
+                      formattedValue={formatCurrency(
+                        dashboardData.totalRevenue
                       )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+                    />
 
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
+                    <FinancialBar
+                      label="Payroll"
+                      value={dashboardData.driverPayroll}
+                      maximum={financialMaximum}
+                      barClass="bg-cyan-500"
+                      formattedValue={formatCurrency(
+                        dashboardData.driverPayroll
+                      )}
+                    />
+
+                    <FinancialBar
+                      label="Expenses"
+                      value={dashboardData.operatingExpenses}
+                      maximum={financialMaximum}
+                      barClass="bg-amber-500"
+                      formattedValue={formatCurrency(
+                        dashboardData.operatingExpenses
+                      )}
+                    />
+
+                    <FinancialBar
+                      label="Profit"
+                      value={Math.abs(
+                        dashboardData.netProfit
+                      )}
+                      maximum={financialMaximum}
+                      barClass={
+                        dashboardData.netProfit >= 0
+                          ? "bg-emerald-500"
+                          : "bg-rose-500"
+                      }
+                      formattedValue={formatCurrency(
+                        dashboardData.netProfit
+                      )}
+                    />
+                  </div>
+                </section>
+              ) : isDispatcher ? (
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
-                      Truck
-                      Profitability
-                    </p>
+                    <h2 className="text-lg font-bold text-slate-900">
+                      Dispatch Revenue
+                    </h2>
 
-                    <p className="mt-2 text-xl font-semibold text-slate-950">
-                      Revenue vs
-                      cost
+                    <p className="mt-1 text-sm text-slate-500">
+                      Pickup-based revenue performance
                     </p>
                   </div>
 
-                  <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
-                    Updated weekly
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <MiniMetric
+                      label="This Week"
+                      value={formatCurrency(
+                        dashboardData.dispatcherWeeklyRevenue
+                      )}
+                      description="Weekly pickup revenue"
+                    />
+
+                    <MiniMetric
+                      label="This Month"
+                      value={formatCurrency(
+                        dashboardData.dispatcherMonthlyRevenue
+                      )}
+                      description="Monthly pickup revenue"
+                    />
                   </div>
-                </div>
+                </section>
+              ) : (
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">
+                      Operations Overview
+                    </h2>
 
-                <div className="mt-6 overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-slate-200 text-slate-500">
-                      <tr>
-                        <th className="py-3 pr-6">
-                          Truck
-                        </th>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Current fleet activity
+                    </p>
+                  </div>
 
-                        <th className="py-3 pr-6">
-                          Status
-                        </th>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <MiniMetric
+                      label="Active Trucks"
+                      value={String(
+                        dashboardData.activeTrucks
+                      )}
+                      description="Currently active"
+                    />
 
-                        <th className="py-3 pr-6">
-                          Revenue
-                        </th>
+                    <MiniMetric
+                      label="Available Trucks"
+                      value={String(
+                        dashboardData.availableTrucks
+                      )}
+                      description="Ready for assignment"
+                    />
+                  </div>
+                </section>
+              )}
 
-                        <th className="py-3 pr-6">
-                          Expenses
-                        </th>
+              {/* PROFITABILITY / QUICK OPERATIONS */}
 
-                        <th className="py-3">
-                          Net Profit
-                        </th>
-                      </tr>
-                    </thead>
+              {canViewFullFinancialDashboard ? (
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Truck Performance
+                      </h2>
 
-                    <tbody className="divide-y divide-slate-200 text-slate-700">
-                      {dashboardData
-                        .truckProfitability
-                        .length >
-                      0 ? (
-                        dashboardData.truckProfitability.map(
-                          (
-                            truck
-                          ) => {
-                            const profitClass =
-                              truck.netProfit >
-                              0
-                                ? "font-semibold text-emerald-700"
-                                : truck.netProfit <
-                                    0
-                                  ? "font-semibold text-rose-600"
-                                  : "font-semibold text-slate-700";
+                      <p className="mt-1 text-sm text-slate-500">
+                        Revenue vs operating cost
+                      </p>
+                    </div>
 
-                            return (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/trucks")}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      View Fleet
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          <th className="px-6 py-4">
+                            Truck
+                          </th>
+
+                          <th className="px-4 py-4">
+                            Revenue
+                          </th>
+
+                          <th className="px-4 py-4">
+                            Cost
+                          </th>
+
+                          <th className="px-4 py-4">
+                            Profit
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-slate-100">
+                        {dashboardData.truckProfitability.length >
+                        0 ? (
+                          dashboardData.truckProfitability
+                            .slice(0, 5)
+                            .map((truck) => (
                               <tr
-                                key={
-                                  truck.truckId
-                                }
+                                key={truck.truckId}
                                 className="hover:bg-slate-50"
                               >
-                                <td className="py-4 pr-6 font-medium">
-                                  {
-                                    truck.truckNumber
-                                  }
+                                <td className="px-6 py-4">
+                                  <div className="font-semibold text-slate-900">
+                                    {truck.truckNumber}
+                                  </div>
+
+                                  <div className="mt-1">
+                                    <TruckStatusBadge
+                                      status={truck.status}
+                                    />
+                                  </div>
                                 </td>
 
-                                <td className="py-4 pr-6">
-                                  <TruckStatusBadge
-                                    status={
-                                      truck.status
-                                    }
-                                  />
-                                </td>
-
-                                <td className="py-4 pr-6">
+                                <td className="px-4 py-4 text-slate-700">
                                   {formatCurrency(
                                     truck.revenue
                                   )}
                                 </td>
 
-                                <td className="py-4 pr-6">
+                                <td className="px-4 py-4 text-slate-700">
                                   {formatCurrency(
-                                    truck.expenses
+                                    truck.expenses +
+                                      truck.payroll
                                   )}
                                 </td>
 
                                 <td
-                                  className={`py-4 ${profitClass}`}
+                                  className={`px-4 py-4 font-semibold ${
+                                    truck.netProfit >= 0
+                                      ? "text-emerald-600"
+                                      : "text-rose-600"
+                                  }`}
                                 >
                                   {formatCurrency(
                                     truck.netProfit
                                   )}
                                 </td>
                               </tr>
-                            );
-                          }
-                        )
-                      ) : (
-                        <tr>
-                          <td
-                            colSpan={
-                              5
-                            }
-                            className="py-12 text-center text-slate-500"
-                          >
-                            No truck
-                            profitability
-                            data yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-            ) : null}
-
-            {/* RECENT LOADS */}
-
-            {!isAccountant ? (
-            <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
-                    Recent Loads
-                  </p>
-
-                  <p className="mt-2 text-2xl font-semibold text-slate-950">
-                    Active routes
-                    & statuses
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/loads"
-                    )
-                  }
-                  className="inline-flex rounded-2xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
-                >
-                  View full
-                  operations
-                </button>
-              </div>
-
-              <div className="mt-6 overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-slate-200 text-slate-500">
-                    <tr>
-                      <th className="py-4 pr-6">
-                        Load #
-                      </th>
-
-                      <th className="py-4 pr-6">
-                        Broker
-                      </th>
-
-                      <th className="py-4 pr-6">
-                        Driver
-                      </th>
-
-                      <th className="py-4 pr-6">
-                        Truck
-                      </th>
-
-                      <th className="py-4 pr-6">
-                        Pickup
-                      </th>
-
-                      <th className="py-4 pr-6">
-                        Delivery
-                      </th>
-
-                      <th className="py-4 pr-6">
-                        Rate
-                      </th>
-
-                      <th className="py-4">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-200 text-slate-700">
-                    {dashboardData
-                      .recentLoads
-                      .length >
-                    0 ? (
-                      dashboardData.recentLoads.map(
-                        (
-                          load
-                        ) => (
-                          <tr
-                            key={
-                              load.id
-                            }
-                            className="hover:bg-slate-50"
-                          >
-                            <td className="py-4 pr-6 font-medium">
-                              {
-                                load.loadNumber
-                              }
-                            </td>
-
-                            <td className="py-4 pr-6">
-                              {
-                                load.broker
-                              }
-                            </td>
-
-                            <td className="py-4 pr-6">
-                              {
-                                load.driver
-                              }
-                            </td>
-
-                            <td className="py-4 pr-6">
-                              {
-                                load.truck
-                              }
-                            </td>
-
-                            <td className="py-4 pr-6">
-                              <div>
-                                {
-                                  load.pickup
-                                }
-                              </div>
-
-                              {load.pickupDate ? (
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {new Date(
-                                    load.pickupDate
-                                  ).toLocaleDateString()}
-                                </div>
-                              ) : null}
-                            </td>
-
-                            <td className="py-4 pr-6">
-                              <div>
-                                {
-                                  load.delivery
-                                }
-                              </div>
-
-                              {load.deliveryDate ? (
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {new Date(
-                                    load.deliveryDate
-                                  ).toLocaleDateString()}
-                                </div>
-                              ) : null}
-                            </td>
-
-                            <td className="py-4 pr-6">
-                              {formatCurrency(
-                                load.revenue
-                              )}
-                            </td>
-
-                            <td className="py-4">
-                              <LoadStatusBadge
-                                status={
-                                  load.status
-                                }
+                            ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              className="px-6 py-14 text-center"
+                            >
+                              <EmptyState
+                                title="No truck performance data"
+                                description="Profitability data will appear as fleet activity is recorded."
                               />
                             </td>
                           </tr>
-                        )
-                      )
-                    ) : (
-                      <tr>
-                        <td
-                          colSpan={
-                            8
-                          }
-                          className="py-12 text-center text-slate-500"
-                        >
-                          No recent
-                          loads.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : (
+                <QuickActions
+                  role={authContext?.role}
+                  navigate={navigate}
+                />
+              )}
+            </div>
+
+            {/* ==================================================
+                RECEIVABLES
+            ================================================== */}
+
+            {canViewFullFinancialDashboard &&
+            !isAccountant ? (
+              <div className="mt-6">
+                <ReceivablesPanel
+                  data={dashboardData}
+                  formatCurrency={formatCurrency}
+                  navigate={navigate}
+                />
               </div>
-            </section>
             ) : null}
 
-            {/* QUICK ACTIONS */}
+            {/* ==================================================
+                QUICK ACTIONS
+            ================================================== */}
 
-            {!isAccountant ? (
-            <section className="mt-8 rounded-3xl border border-slate-200 bg-slate-950 p-6 text-slate-50 shadow-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">
-                    Quick Actions
-                  </p>
-
-                  <p className="mt-2 text-xl font-semibold">
-                    Create new
-                    fleet entries
-                  </p>
-                </div>
-
-                <p className="text-sm text-slate-400">
-                  Fast access to
-                  operations
-                  workflows.
-                </p>
+            {!isAccountant &&
+            canViewFullFinancialDashboard ? (
+              <div className="mt-6">
+                <QuickActions
+                  role={authContext?.role}
+                  navigate={navigate}
+                />
               </div>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {visibleQuickActions.map(
-                  (action) => {
-                    const route =
-                      getQuickActionRoute(
-                        action
-                      );
-
-                    return (
-                      <button
-                        key={
-                          action
-                        }
-                        type="button"
-                        onClick={() =>
-                          route &&
-                          navigate(
-                            route
-                          )
-                        }
-                        disabled={
-                          !route
-                        }
-                        className={`rounded-3xl border border-slate-800 bg-slate-900 px-5 py-4 text-left text-sm font-semibold text-white transition ${
-                          route
-                            ? "hover:bg-slate-800"
-                            : "cursor-not-allowed opacity-50"
-                        }`}
-                      >
-                        {
-                          action
-                        }
-                      </button>
-                    );
-                  }
-                )}
-              </div>
-            </section>
             ) : null}
 
-            <footer className="mt-8 border-t border-slate-200 py-6">
+            <footer className="mt-8 border-t border-slate-200 py-7">
               <FleetOSBrand variant="footer" />
             </footer>
           </div>
@@ -1821,7 +1261,641 @@ export default function Home() {
 }
 
 /* ============================================================
-   STATUS COMPONENTS
+   KPI CARD
+============================================================ */
+
+function DashboardKpiCard({
+  title,
+  value,
+  subtitle,
+  tone,
+  icon,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+  tone: "blue" | "cyan" | "green" | "purple";
+  icon: "truck" | "load" | "check" | "revenue";
+}) {
+  const toneClasses = {
+    blue: "bg-blue-50 text-blue-600",
+    cyan: "bg-cyan-50 text-cyan-600",
+    green: "bg-emerald-50 text-emerald-600",
+    purple: "bg-violet-50 text-violet-600",
+  };
+
+  return (
+    <article className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_35px_rgba(15,23,42,0.09)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-500">
+            {title}
+          </p>
+
+          <p className="mt-2 truncate text-3xl font-bold tracking-tight text-slate-900">
+            {value}
+          </p>
+        </div>
+
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${toneClasses[tone]}`}
+        >
+          <KpiIcon type={icon} />
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            className="h-3.5 w-3.5"
+            stroke="currentColor"
+            strokeWidth="2.2"
+          >
+            <path
+              d="m7 14 5-5 5 5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+
+        <span className="truncate text-xs font-medium text-slate-500">
+          {subtitle}
+        </span>
+      </div>
+
+      <div className="mt-4 flex h-7 items-end gap-1">
+        {[35, 48, 42, 60, 52, 70, 62, 78, 72, 90].map(
+          (height, index) => (
+            <span
+              key={index}
+              className="flex-1 rounded-sm bg-blue-100"
+              style={{
+                height: `${height}%`,
+                opacity: 0.55 + index * 0.04,
+              }}
+            />
+          )
+        )}
+      </div>
+    </article>
+  );
+}
+
+function KpiIcon({
+  type,
+}: {
+  type: "truck" | "load" | "check" | "revenue";
+}) {
+  if (type === "truck") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        className="h-5 w-5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          d="M3 6h11v10H3V6Zm11 4h4l3 3v3h-7v-6Z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="7" cy="18" r="2" />
+        <circle cx="18" cy="18" r="2" />
+      </svg>
+    );
+  }
+
+  if (type === "load") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        className="h-5 w-5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path
+          d="M5 4h14v16H5V4Z"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M8 8h8M8 12h8M8 16h5"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "check") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        className="h-5 w-5"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path
+          d="m8 12 2.5 2.5L16 9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-5 w-5"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path
+        d="M4 18V9M10 18V5M16 18v-7M22 18V3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M3 18h19"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/* ============================================================
+   STATUS LEGEND
+============================================================ */
+
+function StatusLegend({
+  color,
+  label,
+  value,
+}: {
+  color: string;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className={`h-2.5 w-2.5 shrink-0 rounded-full ${color}`}
+        />
+
+        <span className="truncate text-xs font-medium text-slate-600">
+          {label}
+        </span>
+      </div>
+
+      <span className="ml-2 text-sm font-bold text-slate-900">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/* ============================================================
+   FLEET STATUS
+============================================================ */
+
+function FleetStatusRow({
+  label,
+  value,
+  dotClass,
+}: {
+  label: string;
+  value: number;
+  dotClass: string;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3.5">
+      <div className="flex items-center gap-3">
+        <span
+          className={`h-2.5 w-2.5 rounded-full ${dotClass}`}
+        />
+
+        <span className="text-sm font-medium text-slate-700">
+          {label}
+        </span>
+      </div>
+
+      <span className="text-lg font-bold text-slate-900">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/* ============================================================
+   FINANCIAL BAR
+============================================================ */
+
+function FinancialBar({
+  label,
+  value,
+  maximum,
+  barClass,
+  formattedValue,
+}: {
+  label: string;
+  value: number;
+  maximum: number;
+  barClass: string;
+  formattedValue: string;
+}) {
+  const percentage =
+    value === 0
+      ? 4
+      : Math.max(
+          8,
+          Math.min(
+            100,
+            (Math.abs(value) / maximum) * 100
+          )
+        );
+
+  return (
+    <div className="flex h-full min-w-0 flex-col justify-end">
+      <div className="mb-2 truncate text-center text-[11px] font-semibold text-slate-600 sm:text-xs">
+        {formattedValue}
+      </div>
+
+      <div className="flex h-[160px] items-end justify-center rounded-xl bg-slate-50 px-2 pt-3">
+        <div
+          className={`w-full max-w-[52px] rounded-t-lg ${barClass} shadow-sm transition-all`}
+          style={{
+            height: `${percentage}%`,
+          }}
+        />
+      </div>
+
+      <p className="mt-3 truncate text-center text-xs font-semibold text-slate-500">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+/* ============================================================
+   MINI METRIC
+============================================================ */
+
+function MiniMetric({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+      <p className="text-sm font-medium text-slate-500">
+        {label}
+      </p>
+
+      <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+        {value}
+      </p>
+
+      <p className="mt-2 text-xs text-slate-500">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+/* ============================================================
+   RECEIVABLES
+============================================================ */
+
+function ReceivablesPanel({
+  data,
+  formatCurrency,
+  navigate,
+}: {
+  data: DashboardData;
+  formatCurrency: (value: number) => string;
+  navigate: (path: string) => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">
+            Accounts Receivable
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Outstanding and upcoming customer payments
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigate("/invoices")}
+          className="w-fit rounded-xl bg-[#0b1729] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Review Invoices
+        </button>
+      </div>
+
+      <div className="grid gap-px border-b border-slate-100 bg-slate-100 sm:grid-cols-3">
+        <ReceivableMetric
+          label="Outstanding"
+          value={formatCurrency(
+            data.outstandingReceivables
+          )}
+          valueClass="text-slate-900"
+        />
+
+        <ReceivableMetric
+          label="Overdue"
+          value={formatCurrency(
+            data.overdueReceivables
+          )}
+          valueClass="text-rose-600"
+        />
+
+        <ReceivableMetric
+          label="Due This Week"
+          value={formatCurrency(data.dueThisWeek)}
+          valueClass="text-amber-600"
+        />
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th className="px-6 py-4">
+                Invoice
+              </th>
+
+              <th className="px-4 py-4">
+                Broker
+              </th>
+
+              <th className="px-4 py-4">
+                Amount
+              </th>
+
+              <th className="px-4 py-4">
+                Balance
+              </th>
+
+              <th className="px-4 py-4">
+                Status
+              </th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-slate-100">
+            {data.recentInvoices.length > 0 ? (
+              data.recentInvoices
+                .slice(0, 5)
+                .map((invoice) => (
+                  <tr
+                    key={invoice.id}
+                    className="hover:bg-slate-50"
+                  >
+                    <td className="px-6 py-4 font-semibold text-slate-900">
+                      {invoice.invoiceNumber}
+                    </td>
+
+                    <td className="px-4 py-4 text-slate-700">
+                      {invoice.broker}
+                    </td>
+
+                    <td className="px-4 py-4 text-slate-700">
+                      {formatCurrency(invoice.amount)}
+                    </td>
+
+                    <td className="px-4 py-4 font-medium text-slate-900">
+                      {formatCurrency(invoice.balance)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <InvoiceStatusBadge
+                        status={invoice.status}
+                      />
+                    </td>
+                  </tr>
+                ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-6 py-14 text-center"
+                >
+                  <EmptyState
+                    title="No recent invoices"
+                    description="Invoice activity will appear here."
+                  />
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ReceivableMetric({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass: string;
+}) {
+  return (
+    <div className="bg-white px-6 py-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+
+      <p
+        className={`mt-2 text-2xl font-bold ${valueClass}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/* ============================================================
+   QUICK ACTIONS
+============================================================ */
+
+function QuickActions({
+  role,
+  navigate,
+}: {
+  role: AuthRoleContext["role"] | undefined;
+  navigate: (path: string) => void;
+}) {
+  const actions: {
+    label: string;
+    description: string;
+    path: string;
+    allowed: AuthRoleContext["role"][];
+  }[] = [
+    {
+      label: "Add Load",
+      description: "Create a new load",
+      path: "/loads",
+      allowed: [
+        "owner",
+        "admin",
+        "dispatcher",
+      ],
+    },
+
+    {
+      label: "Add Driver",
+      description: "Manage drivers",
+      path: "/drivers",
+      allowed: [
+        "owner",
+        "admin",
+        "fleet_manager",
+      ],
+    },
+
+    {
+      label: "Add Truck",
+      description: "Manage fleet equipment",
+      path: "/trucks",
+      allowed: [
+        "owner",
+        "admin",
+        "fleet_manager",
+      ],
+    },
+
+    {
+      label: "Add Expense",
+      description: "Record operating costs",
+      path: "/expenses",
+      allowed: [
+        "owner",
+        "admin",
+        "accountant",
+      ],
+    },
+  ];
+
+  const visibleActions = role
+    ? actions.filter((action) =>
+        action.allowed.includes(role)
+      )
+    : [];
+
+  if (visibleActions.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-2xl bg-gradient-to-br from-[#081527] to-[#10233d] p-6 text-white shadow-sm">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
+          Quick Actions
+        </p>
+
+        <h2 className="mt-2 text-xl font-bold">
+          Keep operations moving
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-400">
+          Jump directly into your most common workflows.
+        </p>
+      </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        {visibleActions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={() => navigate(action.path)}
+            className="group rounded-xl border border-white/10 bg-white/[0.06] p-4 text-left transition hover:border-blue-400/30 hover:bg-white/10"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-semibold text-white">
+                {action.label}
+              </span>
+
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white transition group-hover:bg-blue-500">
+                +
+              </span>
+            </div>
+
+            <p className="mt-2 text-xs text-slate-400">
+              {action.description}
+            </p>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   EMPTY STATE
+============================================================ */
+
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div>
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          className="h-5 w-5"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <path
+            d="M5 4h14v16H5V4Z"
+            strokeLinejoin="round"
+          />
+
+          <path
+            d="M8 9h8M8 13h6"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
+
+      <p className="mt-3 text-sm font-semibold text-slate-700">
+        {title}
+      </p>
+
+      <p className="mt-1 text-xs text-slate-500">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+/* ============================================================
+   INVOICE STATUS
 ============================================================ */
 
 function InvoiceStatusBadge({
@@ -1832,44 +1906,35 @@ function InvoiceStatusBadge({
   let classes =
     "bg-slate-100 text-slate-700";
 
-  if (
-    status === "invoiced"
-  ) {
+  if (status === "invoiced") {
     classes =
-      "bg-sky-100 text-sky-700";
-  } else if (
-    status === "due"
-  ) {
-    classes =
-      "bg-amber-100 text-amber-700";
-  } else if (
-    status === "overdue"
-  ) {
-    classes =
-      "bg-rose-50 text-rose-600";
-  } else if (
-    status ===
-    "partially_paid"
-  ) {
+      "bg-blue-50 text-blue-700";
+  } else if (status === "due") {
     classes =
       "bg-amber-50 text-amber-700";
-  } else if (
-    status === "paid"
-  ) {
+  } else if (status === "overdue") {
     classes =
-      "bg-emerald-100 text-emerald-700";
+      "bg-rose-50 text-rose-600";
+  } else if (status === "partially_paid") {
+    classes =
+      "bg-amber-50 text-amber-700";
+  } else if (status === "paid") {
+    classes =
+      "bg-emerald-50 text-emerald-700";
   }
 
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${classes}`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${classes}`}
     >
-      {prettyStatus(
-        status
-      )}
+      {prettyStatus(status)}
     </span>
   );
 }
+
+/* ============================================================
+   TRUCK STATUS
+============================================================ */
 
 function TruckStatusBadge({
   status,
@@ -1879,107 +1944,89 @@ function TruckStatusBadge({
   let classes =
     "bg-slate-100 text-slate-700";
 
-  if (
-    status === "active"
-  ) {
+  if (status === "active") {
     classes =
-      "bg-emerald-100 text-emerald-700";
-  } else if (
-    status ===
-    "available"
-  ) {
+      "bg-emerald-50 text-emerald-700";
+  } else if (status === "available") {
     classes =
-      "bg-sky-100 text-sky-700";
-  } else if (
-    status ===
-    "maintenance"
-  ) {
+      "bg-blue-50 text-blue-700";
+  } else if (status === "maintenance") {
     classes =
-      "bg-amber-100 text-amber-700";
+      "bg-amber-50 text-amber-700";
   }
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classes}`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${classes}`}
     >
-      {prettyStatus(
-        status
-      )}
+      {prettyStatus(status)}
     </span>
   );
 }
+
+/* ============================================================
+   LOAD STATUS
+============================================================ */
 
 function LoadStatusBadge({
   status,
 }: {
   status: string;
 }) {
-  const statusClasses: Record<
-    string,
-    string
-  > = {
+  const statusClasses: Record<string, string> = {
     booked:
-      "bg-sky-50 text-sky-700",
+      "bg-blue-50 text-blue-700",
 
     dispatched:
-      "bg-sky-100 text-sky-700",
+      "bg-cyan-50 text-cyan-700",
 
     picked_up:
       "bg-amber-50 text-amber-700",
 
     in_transit:
-      "bg-sky-100 text-sky-700",
+      "bg-blue-50 text-blue-700",
 
     delivered:
-      "bg-emerald-100 text-emerald-700",
+      "bg-emerald-50 text-emerald-700",
 
     pod_received:
-      "bg-emerald-100 text-emerald-700",
+      "bg-emerald-50 text-emerald-700",
 
     invoiced:
-      "bg-amber-50 text-amber-700",
+      "bg-violet-50 text-violet-700",
 
     paid:
-      "bg-emerald-100 text-emerald-700",
+      "bg-emerald-50 text-emerald-700",
 
     cancelled:
       "bg-slate-100 text-slate-700",
   };
 
   const classes =
-    statusClasses[
-      status
-    ] ??
+    statusClasses[status] ??
     "bg-slate-100 text-slate-700";
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classes}`}
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${classes}`}
     >
-      {prettyStatus(
-        status
-      )}
+      {prettyStatus(status)}
     </span>
   );
 }
 
-function prettyStatus(
-  status: string
-) {
+/* ============================================================
+   PRETTY STATUS
+============================================================ */
+
+function prettyStatus(status: string) {
   if (!status) {
     return "";
   }
 
   return status
-    .replaceAll(
-      "_",
-      " "
-    )
-    .replace(
-      /\b\w/g,
-      (
-        character
-      ) =>
-        character.toUpperCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) =>
+      character.toUpperCase()
     );
 }
